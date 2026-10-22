@@ -28,14 +28,17 @@ Native SwiftUI for iPhone and iPad (iOS 17+). © Say Studios LLC.
 - **Privacy**: no ads, no accounts, no network, no tracking. Progress is stored only on the device.
 - All questions are generated fresh each time from original templates (no copied content), with unit tests checking every answer.
 
-## Build without a Mac
+## Open in Xcode
 
-The project uses [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`project.yml`), so there's no `.xcodeproj` to manage by hand.
+Double-click **SayMathJr.xcodeproj** (Xcode 16 or newer). Pick an iPhone or iPad simulator at the top and press **Run** (⌘R). Press ⌘U to run the tests.
 
-1. Put this folder in a GitHub repo (for example `saystudios/say-math-jr`).
-2. The included workflow `.github/workflows/build.yml` runs on GitHub's cloud Macs: it generates the Xcode project, builds the app and runs the tests. Check the **Actions** tab for a green check.
+To run on your own iPhone/iPad: select the **SayMathJr** target → **Signing & Capabilities** → choose your Team.
 
-On a Mac: `brew install xcodegen && xcodegen generate && open SayMathJr.xcodeproj`.
+New Swift files dropped into the `SayMathJr` folder are picked up by Xcode automatically.
+
+## Cloud build
+
+`.github/workflows/build.yml` builds the app and runs the tests on GitHub's cloud Macs for every push and pull request.
 
 ## Project layout
 
@@ -49,6 +52,7 @@ SayMathJr/
   Views/      Onboarding, Home, Lesson, Result, Sticker Book, Grown-ups
   Views/Visuals/  Ten-frame objects, number bonds, shapes, clock, base-ten blocks
 SayMathJrTests/   Generator + progress tests
+SayMathJr.xcodeproj  Xcode project (open this)
 ```
 
 ## Next stages (ideas)

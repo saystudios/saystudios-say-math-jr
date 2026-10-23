@@ -1,6 +1,6 @@
 name: Build & Test
 
-# Compiles the app and runs the unit tests on a cloud Mac — no Mac needed on your side.
+# Compiles the app, runs the unit tests and takes screenshots on a cloud Mac.
 on:
   push:
     branches: [main]
@@ -25,5 +25,39 @@ jobs:
             -project SayMathJr.xcodeproj \
             -scheme SayMathJr \
             -destination "id=${{ steps.sim.outputs.udid }}" \
+            -derivedDataPath build \
             -quiet \
             CODE_SIGNING_ALLOWED=NO
+
+      - name: Take screenshots
+        run: |
+          UDID=${{ steps.sim.outputs.udid }}
+          APP=$(find build/Build/Products -name "SayMathJr.app" -path "*iphonesimulator*" | head -1)
+          xcrun simctl boot "$UDID" 2>/dev/null || true
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl install "$UDID" "$APP"
+          xcrun simctl status_bar "$UDID" override --time 9:41 --batteryState charged --batteryLevel 100 || true
+          mkdir -p screenshots
+          shot() {
+            name=$1; shift
+            xcrun simctl terminate "$UDID" com.saystudios.saymathjr 2>/dev/null || true
+            xcrun simctl launch "$UDID" com.saystudios.saymathjr "$@"
+            sleep 6
+            xcrun simctl io "$UDID" screenshot "screenshots/$name.png"
+          }
+          shot 1-onboarding -demoScreen onboarding
+          shot 2-home       -demoScreen home -demoGrade K
+          shot 3-counting   -demoScreen lesson -demoSkill counting -demoGrade K
+          shot 4-correct    -demoScreen lessonCorrect -demoSkill addition -demoGrade K
+          shot 5-wrong      -demoScreen lessonWrong -demoSkill shapes -demoGrade 1
+          shot 6-result     -demoScreen result -demoSkill patterns -demoGrade K
+          shot 7-stickers   -demoScreen stickers -demoGrade K
+          shot 8-clock      -demoScreen lesson -demoSkill time -demoGrade 1
+          shot 9-home-grade2 -demoScreen home -demoGrade 2
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: screenshots

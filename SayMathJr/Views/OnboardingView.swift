@@ -8,23 +8,24 @@ struct OnboardingView: View {
 
     var body: some View {
         ZStack {
-            Theme.background.ignoresSafeArea()
+            SceneBackground()
             ScrollView {
-                VStack(spacing: 24) {
-                    VStack(spacing: 4) {
-                        Text("Say Math")
-                            .font(.kid(46, .heavy))
-                            .foregroundStyle(LinearGradient(colors: [Theme.blue, Theme.purple], startPoint: .leading, endPoint: .trailing))
-                        Text("Jr.")
-                            .font(.kid(40, .heavy))
-                            .foregroundStyle(LinearGradient(colors: [Theme.pink, Theme.orange], startPoint: .leading, endPoint: .trailing))
+                VStack(spacing: 20) {
+                    VStack(spacing: 0) {
+                        BubbleTitle(text: "Say Math", size: 54)
+                        BubbleTitle(text: "Jr.", size: 44, colors: [Theme.pink, Theme.orange, Theme.yellow])
+                            .padding(.top, -6)
                         Text("Little steps. Big math!")
-                            .font(.kid(18, .semibold))
-                            .foregroundStyle(Theme.inkSoft)
+                            .font(.kid(18, .heavy))
+                            .foregroundStyle(Theme.ink)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 6)
+                            .background(Capsule().fill(.white.opacity(0.9)))
+                            .padding(.top, 6)
                     }
-                    .padding(.top, 30)
+                    .padding(.top, 24)
 
-                    MascotBubble(text: "Hi! I'm Pip. Let's set up your player!")
+                    MascotBubble(text: "Hi! I'm Pip. Let's set up your player!", mood: .happy, pipSize: 96)
 
                     VStack(alignment: .leading, spacing: 12) {
                         label("Pick your buddy")
@@ -32,10 +33,12 @@ struct OnboardingView: View {
                             ForEach(ProgressStore.avatars, id: \.self) { a in
                                 Button { avatar = a } label: {
                                     Text(a)
-                                        .font(.system(size: 40))
+                                        .font(.system(size: 38))
                                         .frame(width: 64, height: 64)
-                                        .background(Circle().fill(avatar == a ? Theme.yellow.opacity(0.6) : Theme.sky))
-                                        .overlay(Circle().stroke(avatar == a ? Theme.orange : .clear, lineWidth: 4))
+                                        .background(Circle().fill(avatar == a ? Theme.yellow.lighter(0.4) : Theme.sky))
+                                        .overlay(Circle().stroke(avatar == a ? Theme.orange : .white, lineWidth: 4))
+                                        .scaleEffect(avatar == a ? 1.08 : 1)
+                                        .animation(.spring(response: 0.3, dampingFraction: 0.5), value: avatar)
                                 }
                                 .buttonStyle(BouncyButtonStyle())
                                 .accessibilityLabel("Buddy \(a)")
@@ -48,7 +51,7 @@ struct OnboardingView: View {
                             .textInputAutocapitalization(.words)
                             .autocorrectionDisabled()
                             .padding(14)
-                            .background(RoundedRectangle(cornerRadius: 16).fill(Theme.sky.opacity(0.6)))
+                            .background(RoundedRectangle(cornerRadius: 18).fill(Theme.sky.opacity(0.6)))
 
                         label("Your grade")
                         HStack(spacing: 10) {
@@ -57,19 +60,19 @@ struct OnboardingView: View {
                                     Text(g.short)
                                         .font(.kid(24, .heavy))
                                         .foregroundStyle(grade == g ? .white : Theme.ink)
-                                        .frame(maxWidth: .infinity, minHeight: 60)
-                                        .background(
-                                            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                                .fill(grade == g ? Theme.blue : Theme.sky)
-                                        )
+                                        .frame(maxWidth: .infinity, minHeight: 56)
                                 }
-                                .buttonStyle(BouncyButtonStyle())
+                                .buttonStyle(CandyButtonStyle(color: grade == g ? Theme.blue : Theme.sky, radius: 20, depth: 5))
                                 .accessibilityLabel(g.title)
                             }
                         }
                     }
                     .padding(20)
-                    .card()
+                    .background(
+                        RoundedRectangle(cornerRadius: 30, style: .continuous)
+                            .fill(.white)
+                            .shadow(color: Theme.ink.opacity(0.10), radius: 12, y: 6)
+                    )
 
                     Button {
                         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -78,16 +81,15 @@ struct OnboardingView: View {
                         Text("Let's Play!")
                             .font(.kid(26, .heavy))
                             .foregroundStyle(.white)
-                            .frame(maxWidth: .infinity, minHeight: 66)
-                            .background(Capsule().fill(Theme.green.gradient))
-                            .shadow(color: Theme.green.opacity(0.4), radius: 8, y: 4)
+                            .frame(maxWidth: .infinity, minHeight: 64)
                     }
-                    .buttonStyle(BouncyButtonStyle())
+                    .buttonStyle(CandyButtonStyle(color: Theme.green, radius: 32, depth: 7))
 
                     Text("Grown-ups: no ads, no accounts. Progress stays on this device.")
-                        .font(.kid(13, .medium))
-                        .foregroundStyle(Theme.inkSoft)
+                        .font(.kid(13, .semibold))
+                        .foregroundStyle(Theme.ink.opacity(0.7))
                         .multilineTextAlignment(.center)
+                        .padding(.bottom, 10)
                 }
                 .padding(20)
                 .frame(maxWidth: 560)
@@ -97,6 +99,6 @@ struct OnboardingView: View {
     }
 
     private func label(_ text: String) -> some View {
-        Text(text).font(.kid(18, .bold)).foregroundStyle(Theme.ink)
+        Text(text).font(.kid(18, .heavy)).foregroundStyle(Theme.ink)
     }
 }

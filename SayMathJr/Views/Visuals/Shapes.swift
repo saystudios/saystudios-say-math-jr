@@ -97,7 +97,28 @@ struct ShapeFigure: View {
                 styled(HeartShape(), Theme.pink).frame(width: size, height: size * 0.9)
             }
         }
+        .overlay {
+            KawaiiFace(size: size * faceScale)
+                .offset(y: size * faceOffset)
+        }
         .accessibilityLabel(kind.name)
+    }
+
+    private var faceScale: CGFloat {
+        switch kind {
+        case .star: return 0.32
+        case .triangle: return 0.38
+        default: return 0.46
+        }
+    }
+
+    private var faceOffset: CGFloat {
+        switch kind {
+        case .triangle: return 0.16
+        case .heart: return -0.04
+        case .star: return 0.03
+        default: return 0
+        }
     }
 
     private func styled<S: Shape>(_ shape: S, _ color: Color) -> some View {

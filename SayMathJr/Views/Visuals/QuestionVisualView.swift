@@ -18,9 +18,9 @@ struct QuestionVisualView: View {
             ObjectsGrid(emoji: emoji, count: count)
         case .addition(let emoji, let a, let b):
             HStack(spacing: 10) {
-                ObjectsGrid(emoji: emoji, count: a, columns: min(max(a, 1), 3))
+                ObjectsGrid(emoji: emoji, count: a, columns: min(max(a, 1), 3), compact: true)
                 Text("+").font(.kid(44, .heavy)).foregroundStyle(Theme.green)
-                ObjectsGrid(emoji: emoji, count: b, columns: min(max(b, 1), 3))
+                ObjectsGrid(emoji: emoji, count: b, columns: min(max(b, 1), 3), compact: true)
             }
         case .subtraction(let emoji, let total, let take):
             ObjectsGrid(emoji: emoji, count: total, crossedFromEnd: take)
@@ -45,21 +45,26 @@ struct ObjectsGrid: View {
     let count: Int
     var columns: Int = 5
     var crossedFromEnd: Int = 0
+    var compact = false
 
-    private var itemSize: CGFloat { count > 10 ? 30 : 40 }
+    private var itemSize: CGFloat { compact || count > 10 ? 28 : 36 }
 
     var body: some View {
-        let cols = Array(repeating: GridItem(.fixed(itemSize + 6), spacing: 4), count: max(1, min(columns, max(count, 1))))
-        LazyVGrid(columns: cols, spacing: 6) {
+        let cell = itemSize + 12
+        let cols = Array(repeating: GridItem(.fixed(cell), spacing: 4), count: max(1, min(columns, max(count, 1))))
+        LazyVGrid(columns: cols, spacing: 5) {
             ForEach(0..<count, id: \.self) { i in
                 let crossed = i >= count - crossedFromEnd
                 Text(emoji)
                     .font(.system(size: itemSize))
-                    .opacity(crossed ? 0.35 : 1)
+                    .frame(width: cell, height: cell)
+                    .background(Circle().fill(.white))
+                    .overlay(Circle().stroke(Theme.sky, lineWidth: 2))
+                    .opacity(crossed ? 0.4 : 1)
                     .overlay {
                         if crossed {
                             Image(systemName: "xmark")
-                                .font(.system(size: itemSize * 0.9, weight: .heavy))
+                                .font(.system(size: itemSize * 0.95, weight: .black))
                                 .foregroundStyle(Theme.red)
                         }
                     }

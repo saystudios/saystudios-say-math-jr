@@ -12,25 +12,25 @@ struct HomeView: View {
     var body: some View {
         NavigationStack(path: $path) {
             ZStack {
-                Theme.background.ignoresSafeArea()
+                SceneBackground()
                 ScrollView {
-                    VStack(spacing: 18) {
+                    VStack(spacing: 16) {
                         header
-                        MascotBubble(text: greeting)
+                        MascotBubble(text: greeting, mood: .happy, pipSize: 84)
                         statsRow
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 14)], spacing: 14) {
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 14)], spacing: 12) {
                             ForEach(skills) { skill in
                                 NavigationLink(value: skill) {
                                     SkillTile(skill: skill, progress: store.progress(for: skill))
                                 }
-                                .buttonStyle(BouncyButtonStyle())
+                                .buttonStyle(CandyButtonStyle(color: skill.color.lighter(0.62), radius: 28, depth: 7))
                             }
                         }
                         bottomButtons
                         Text("© Say Studios LLC")
                             .font(.kid(12, .medium))
-                            .foregroundStyle(Theme.inkSoft)
-                            .padding(.top, 6)
+                            .foregroundStyle(Theme.ink.opacity(0.6))
+                            .padding(.top, 4)
                     }
                     .padding(18)
                     .frame(maxWidth: 820)
@@ -51,6 +51,7 @@ struct HomeView: View {
             .presentationDetents([.medium, .large])
         }
         .sheet(isPresented: $showParent) { ParentView() }
+        .onAppear(perform: openDemoScreen)
     }
 
     private var greeting: String {
@@ -63,18 +64,23 @@ struct HomeView: View {
     private var header: some View {
         HStack(spacing: 12) {
             Text(store.profile?.avatar ?? "🐶")
-                .font(.system(size: 38))
-                .frame(width: 60, height: 60)
+                .font(.system(size: 36))
+                .frame(width: 62, height: 62)
                 .background(Circle().fill(.white))
-            VStack(alignment: .leading, spacing: 0) {
+                .overlay(Circle().stroke(Theme.yellow, lineWidth: 4))
+                .shadow(color: Theme.ink.opacity(0.12), radius: 4, y: 3)
+            VStack(alignment: .leading, spacing: 2) {
                 Text("Hi, \(store.profile?.name ?? "Friend")!")
-                    .font(.kid(26, .heavy))
+                    .font(.kid(28, .heavy))
                     .foregroundStyle(Theme.ink)
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
-                Text("Say Math Jr. · \(store.grade.title)")
-                    .font(.kid(15, .semibold))
-                    .foregroundStyle(Theme.inkSoft)
+                Text(store.grade.title)
+                    .font(.kid(14, .bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 3)
+                    .background(Capsule().fill(Theme.purple))
             }
             Spacer()
         }
@@ -82,9 +88,9 @@ struct HomeView: View {
 
     private var statsRow: some View {
         HStack(spacing: 12) {
-            StatPill(icon: "⭐", value: "\(store.data.totalStars)", label: "Stars", color: Theme.yellow)
-            StatPill(icon: "🔥", value: "\(store.currentStreak)", label: "Day streak", color: Theme.orange)
-            StatPill(icon: "🎁", value: "\(store.unlockedStickerCount)", label: "Stickers", color: Theme.pink)
+            StatPill(icon: "star.fill", value: "\(store.data.totalStars)", label: "Stars", color: Theme.yellow)
+            StatPill(icon: "flame.fill", value: "\(store.currentStreak)", label: "Day streak", color: Theme.orange)
+            StatPill(icon: "gift.fill", value: "\(store.unlockedStickerCount)", label: "Stickers", color: Theme.pink)
         }
     }
 
@@ -92,23 +98,32 @@ struct HomeView: View {
         HStack(spacing: 12) {
             Button { showStickers = true } label: {
                 Label("Sticker Book", systemImage: "book.fill")
-                    .font(.kid(18, .bold))
+                    .font(.kid(18, .heavy))
                     .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity, minHeight: 56)
-                    .background(Capsule().fill(Theme.purple.gradient))
+                    .frame(maxWidth: .infinity, minHeight: 54)
             }
-            .buttonStyle(BouncyButtonStyle())
+            .buttonStyle(CandyButtonStyle(color: Theme.purple, radius: 27))
 
             Button { showGate = true } label: {
                 Label("Grown-ups", systemImage: "lock.fill")
-                    .font(.kid(18, .bold))
+                    .font(.kid(18, .heavy))
                     .foregroundStyle(Theme.ink)
-                    .frame(maxWidth: .infinity, minHeight: 56)
-                    .background(Capsule().fill(.white))
+                    .frame(maxWidth: .infinity, minHeight: 54)
             }
-            .buttonStyle(BouncyButtonStyle())
+            .buttonStyle(CandyButtonStyle(color: .white, radius: 27))
         }
         .padding(.top, 6)
+    }
+
+    private func openDemoScreen() {
+        switch DemoMode.screen {
+        case "lesson", "lessonCorrect", "lessonWrong", "result":
+            if path.isEmpty { path = [DemoMode.skill] }
+        case "stickers":
+            showStickers = true
+        default:
+            break
+        }
     }
 }
 
@@ -120,11 +135,18 @@ struct StatPill: View {
 
     var body: some View {
         VStack(spacing: 2) {
-            Text("\(icon) \(value)").font(.kid(22, .heavy)).foregroundStyle(Theme.ink)
-            Text(label).font(.kid(12, .semibold)).foregroundStyle(Theme.inkSoft)
+            HStack(spacing: 5) {
+                Image(systemName: icon)
+                    .font(.system(size: 18, weight: .heavy))
+                    .foregroundStyle(color.darker(0.05))
+                Text(value)
+                    .font(.kid(24, .heavy))
+                    .foregroundStyle(Theme.ink)
+            }
+            Text(label).font(.kid(12, .bold)).foregroundStyle(Theme.inkSoft)
         }
-        .frame(maxWidth: .infinity, minHeight: 68)
-        .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(color.opacity(0.25)))
+        .frame(maxWidth: .infinity, minHeight: 66)
+        .candy(.white, radius: 22, depth: 5)
         .accessibilityElement(children: .combine)
     }
 }
@@ -136,32 +158,36 @@ struct SkillTile: View {
     var body: some View {
         VStack(spacing: 8) {
             Text(skill.emoji)
-                .font(.system(size: 44))
-                .frame(width: 76, height: 76)
-                .background(Circle().fill(.white.opacity(0.85)))
+                .font(.system(size: 42))
+                .frame(width: 74, height: 74)
+                .background(Circle().fill(.white))
+                .overlay(Circle().stroke(skill.color.lighter(0.25), lineWidth: 4))
+                .overlay(alignment: .topTrailing) {
+                    if progress.bestStars == 3 {
+                        Image(systemName: "crown.fill")
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundStyle(Theme.yellow)
+                            .shadow(color: Theme.orange.opacity(0.5), radius: 0, y: 2)
+                            .rotationEffect(.degrees(20))
+                            .offset(x: 6, y: -6)
+                    }
+                }
             Text(skill.title)
                 .font(.kid(19, .heavy))
                 .foregroundStyle(Theme.ink)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
-            HStack(spacing: 2) {
+            HStack(spacing: 3) {
                 ForEach(0..<3, id: \.self) { i in
-                    Image(systemName: i < progress.bestStars ? "star.fill" : "star")
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundStyle(i < progress.bestStars ? Theme.yellow : Theme.ink.opacity(0.25))
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(i < progress.bestStars ? Theme.yellow : .white.opacity(0.85))
+                        .shadow(color: i < progress.bestStars ? Theme.orange.opacity(0.4) : .clear, radius: 0, y: 1.5)
                 }
             }
         }
         .padding(.vertical, 16)
         .frame(maxWidth: .infinity)
-        .background(
-            RoundedRectangle(cornerRadius: 26, style: .continuous)
-                .fill(skill.color.opacity(0.28))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 26, style: .continuous)
-                .stroke(skill.color.opacity(0.6), lineWidth: 2)
-        )
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(skill.title), \(progress.bestStars) of 3 stars")
     }

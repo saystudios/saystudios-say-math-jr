@@ -137,7 +137,7 @@ struct LessonView: View {
             if let first = q.choices.first, case .group = first { return true }
             return false
         }()
-        let columns = isGroup ? 1 : 2
+        let columns = isGroup ? 1 : (q.choices.count == 3 ? 3 : 2)
         return LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 14), count: columns), spacing: 10) {
             ForEach(Array(q.choices.enumerated()), id: \.offset) { i, choice in
                 let mark = state(for: i, in: q)

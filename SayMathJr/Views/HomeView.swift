@@ -83,8 +83,6 @@ struct HomeView: View {
                     .background(Capsule().fill(Theme.purple))
             }
             Spacer()
-            BubbleTitle(text: "Jr.", size: 30, colors: [Theme.pink, Theme.orange, Theme.yellow])
-                .accessibilityLabel("Say Math Jr.")
         }
     }
 

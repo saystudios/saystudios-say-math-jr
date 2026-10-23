@@ -33,7 +33,6 @@ struct PipView: View {
     var size: CGFloat = 80
     var bobbing = true
 
-    @State private var bob = false
     @State private var pop = false
 
     var body: some View {
@@ -56,9 +55,11 @@ struct PipView: View {
         }
         .frame(width: size, height: size)
         .scaleEffect(pop ? 1.12 : 1)
-        .offset(y: bobbing ? (bob ? -size * 0.04 : size * 0.02) : 0)
-        .animation(.easeInOut(duration: 1.3).repeatForever(autoreverses: true), value: bob)
-        .onAppear { if bobbing { bob = true } }
+        .phaseAnimator(bobbing ? [false, true] : [false]) { content, up in
+            content.offset(y: up ? -size * 0.04 : size * 0.02)
+        } animation: { _ in
+            .easeInOut(duration: 1.3)
+        }
         .onChange(of: mood) { _, newMood in
             guard newMood == .cheer || newMood == .oops else { return }
             withAnimation(.spring(response: 0.25, dampingFraction: 0.45)) { pop = true }
@@ -236,9 +237,6 @@ struct SceneBackground: View {
     var tint: Color? = nil
     var showHills = true
 
-    @State private var drift = false
-    @State private var twinkle = false
-
     private let sparkles: [(CGFloat, CGFloat, CGFloat)] = [
         (0.08, 0.22, 16), (0.9, 0.14, 12), (0.78, 0.36, 10), (0.18, 0.48, 9), (0.94, 0.56, 14), (0.5, 0.08, 10),
     ]
@@ -256,20 +254,22 @@ struct SceneBackground: View {
                     startPoint: .top, endPoint: .bottom)
 
                 CloudView(width: 130)
-                    .position(x: w * 0.2 + (drift ? 18 : -12), y: h * 0.10)
+                    .drifting(18)
+                    .position(x: w * 0.2, y: h * 0.10)
                 CloudView(width: 90)
-                    .position(x: w * 0.82 + (drift ? -14 : 10), y: h * 0.22)
+                    .drifting(-14)
+                    .position(x: w * 0.82, y: h * 0.22)
                 CloudView(width: 70)
-                    .position(x: w * 0.55 + (drift ? 10 : -8), y: h * 0.42)
+                    .drifting(10)
+                    .position(x: w * 0.55, y: h * 0.42)
                     .opacity(0.7)
 
                 ForEach(Array(sparkles.enumerated()), id: \.offset) { i, s in
                     SparkleShape()
                         .fill(i.isMultiple(of: 2) ? Theme.yellow : .white)
                         .frame(width: s.2, height: s.2)
+                        .twinkling(startBright: i.isMultiple(of: 2))
                         .position(x: w * s.0, y: h * s.1)
-                        .opacity(twinkle == i.isMultiple(of: 2) ? 1 : 0.35)
-                        .scaleEffect(twinkle == i.isMultiple(of: 2) ? 1 : 0.7)
                 }
 
                 if showHills {
@@ -283,15 +283,28 @@ struct SceneBackground: View {
                         .position(x: w * 0.95, y: h + 60)
                 }
             }
-            .animation(.easeInOut(duration: 7).repeatForever(autoreverses: true), value: drift)
-            .animation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true), value: twinkle)
         }
         .ignoresSafeArea()
-        .onAppear {
-            drift = true
-            twinkle = true
-        }
         .accessibilityHidden(true)
+    }
+}
+
+private extension View {
+    /// Slow side-to-side drift that only animates its own offset.
+    func drifting(_ distance: CGFloat) -> some View {
+        phaseAnimator([false, true]) { content, right in
+            content.offset(x: right ? distance : -distance * 0.6)
+        } animation: { _ in
+            .easeInOut(duration: 7)
+        }
+    }
+
+    func twinkling(startBright: Bool) -> some View {
+        phaseAnimator([startBright, !startBright]) { content, bright in
+            content.opacity(bright ? 1 : 0.35).scaleEffect(bright ? 1 : 0.7)
+        } animation: { _ in
+            .easeInOut(duration: 1.6)
+        }
     }
 }
 

@@ -32,11 +32,11 @@ struct StickerBookView: View {
                                     } else {
                                         Image(systemName: "questionmark")
                                             .font(.system(size: 26, weight: .black, design: .rounded))
-                                            .foregroundStyle(.white)
+                                            .foregroundStyle(Theme.purple.lighter(0.45))
                                     }
                                 }
                                 .frame(maxWidth: .infinity, minHeight: 86)
-                                .candy(unlocked ? tileColors[i % tileColors.count].lighter(0.55) : Theme.ink.opacity(0.18),
+                                .candy(unlocked ? tileColors[i % tileColors.count].lighter(0.55) : Theme.purple.lighter(0.86),
                                        radius: 22, depth: 5)
                                 .accessibilityLabel(unlocked ? "Sticker \(sticker)" : "Locked sticker")
                             }

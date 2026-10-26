@@ -35,6 +35,12 @@ enum PipMood: Equatable {
         case .oops: return "pip_oops"
         }
     }
+
+    /// The finished artwork for this mood. Thinking falls back to the happy pose
+    /// so the art style stays consistent until a thinking pose is added.
+    var artwork: UIImage? {
+        UIImage(named: assetName) ?? (self == .think ? UIImage(named: "pip_happy") : nil)
+    }
 }
 
 /// Pip, the app's original puppy helper, drawn entirely in code.
@@ -46,8 +52,9 @@ struct PipView: View {
     @State private var pop = false
 
     var body: some View {
+        let art = mood.artwork
         ZStack {
-            if mood == .cheer {
+            if mood == .cheer && art == nil {
                 ForEach(0..<4, id: \.self) { i in
                     SparkleShape()
                         .fill(i.isMultiple(of: 2) ? Theme.yellow : Theme.pink)
@@ -58,7 +65,7 @@ struct PipView: View {
                         .transition(.scale.combined(with: .opacity))
                 }
             }
-            if let art = UIImage(named: mood.assetName) {
+            if let art {
                 // Finished artwork (Assets.xcassets/pip_<mood>) when it has been added
                 Image(uiImage: art)
                     .resizable()

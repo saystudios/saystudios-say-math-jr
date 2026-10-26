@@ -21,7 +21,7 @@ struct ResultView: View {
             Theme.ink.opacity(0.35).ignoresSafeArea()
 
             VStack(spacing: 14) {
-                PipView(mood: .cheer, size: 120)
+                PipView(mood: .trophy, size: 130)
                     .padding(.top, -70)
 
                 Text(result.stars == 3 ? "Perfect!" : "Great Work!")

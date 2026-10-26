@@ -24,7 +24,7 @@ extension Color {
 // MARK: - Pip the puppy
 
 enum PipMood: Equatable {
-    case happy, cheer, think, oops
+    case happy, cheer, think, oops, wave, trophy
 
     /// Image name in the asset catalog. If the image is missing, Pip is drawn in code instead.
     var assetName: String {
@@ -33,13 +33,29 @@ enum PipMood: Equatable {
         case .cheer: return "pip_cheer"
         case .think: return "pip_think"
         case .oops: return "pip_oops"
+        case .wave: return "pip_wave"
+        case .trophy: return "pip_trophy"
         }
     }
 
     /// The finished artwork for this mood. Thinking falls back to the happy pose
     /// so the art style stays consistent until a thinking pose is added.
     var artwork: UIImage? {
-        UIImage(named: assetName) ?? (self == .think ? UIImage(named: "pip_happy") : nil)
+        if let image = UIImage(named: assetName) { return image }
+        switch self {
+        case .think, .wave: return UIImage(named: "pip_happy")
+        case .trophy: return UIImage(named: "pip_cheer")
+        default: return nil
+        }
+    }
+
+    /// Mood used by the code-drawn fallback, which only has four faces.
+    var drawnMood: PipMood {
+        switch self {
+        case .wave: return .happy
+        case .trophy: return .cheer
+        default: return self
+        }
     }
 }
 
@@ -54,7 +70,7 @@ struct PipView: View {
     var body: some View {
         let art = mood.artwork
         ZStack {
-            if mood == .cheer && art == nil {
+            if mood.drawnMood == .cheer && art == nil {
                 ForEach(0..<4, id: \.self) { i in
                     SparkleShape()
                         .fill(i.isMultiple(of: 2) ? Theme.yellow : Theme.pink)
@@ -74,7 +90,7 @@ struct PipView: View {
                     .frame(width: size * 1.12, height: size * 1.12)
             } else {
                 Canvas { ctx, canvasSize in
-                    PipDrawing(mood: mood).draw(in: &ctx, size: canvasSize)
+                    PipDrawing(mood: mood.drawnMood).draw(in: &ctx, size: canvasSize)
                 }
                 .frame(width: size, height: size)
             }
@@ -158,12 +174,12 @@ private struct PipDrawing {
         for side in [-1.0, 1.0] as [CGFloat] {
             let ex = side * 0.17, ey: CGFloat = -0.04
             switch mood {
-            case .cheer:
+            case .cheer, .trophy:
                 var arc = Path()
                 arc.move(to: p(ex - 0.06, ey + 0.025))
                 arc.addQuadCurve(to: p(ex + 0.06, ey + 0.025), control: p(ex, ey - 0.07))
                 ctx.stroke(arc, with: .color(Self.dark), style: StrokeStyle(lineWidth: line * 1.3, lineCap: .round))
-            case .happy, .think, .oops:
+            case .happy, .think, .oops, .wave:
                 let h: CGFloat = mood == .oops ? 0.12 : 0.15
                 ctx.fill(ell(ex, ey, 0.115, h), with: .color(Self.dark))
                 let lookUp: CGFloat = mood == .think ? -0.02 : 0
@@ -185,14 +201,14 @@ private struct PipDrawing {
         // Mouth
         let mouthStyle = StrokeStyle(lineWidth: line, lineCap: .round, lineJoin: .round)
         switch mood {
-        case .happy:
+        case .happy, .wave:
             var m = Path()
             m.move(to: p(0, 0.13)); m.addLine(to: p(0, 0.165))
             m.move(to: p(-0.075, 0.165))
             m.addQuadCurve(to: p(0, 0.165), control: p(-0.037, 0.225))
             m.addQuadCurve(to: p(0.075, 0.165), control: p(0.037, 0.225))
             ctx.stroke(m, with: .color(Self.dark), style: mouthStyle)
-        case .cheer:
+        case .cheer, .trophy:
             var m = Path()
             m.move(to: p(-0.1, 0.155))
             m.addQuadCurve(to: p(0.1, 0.155), control: p(0, 0.36))

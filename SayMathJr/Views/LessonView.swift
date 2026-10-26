@@ -14,6 +14,7 @@ struct LessonView: View {
     @State private var firstTryCorrect = 0
     @State private var shake: CGFloat = 0
     @State private var bubble = ""
+    @State private var mood: PipMood = .think
     @State private var successCount = 0
     @State private var errorCount = 0
     @State private var result: LessonResult?
@@ -22,27 +23,28 @@ struct LessonView: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(colors: [skill.color.opacity(0.25), Theme.cream], startPoint: .top, endPoint: .bottom)
-                .ignoresSafeArea()
+            SceneBackground(tint: skill.color, showHills: false)
 
             if let q = current {
-                VStack(spacing: 14) {
+                VStack(spacing: 12) {
                     topBar
                     ScrollView {
                         VStack(spacing: 16) {
                             questionCard(q)
                             choicesGrid(q)
-                            MascotBubble(text: bubble.isEmpty ? "Tap the right answer!" : bubble)
-                                .animation(.spring, value: bubble)
+                            MascotBubble(text: bubble.isEmpty ? "Tap the right answer!" : bubble, mood: mood)
                         }
                         .padding(.horizontal, 18)
-                        .padding(.bottom, 100)
+                        .padding(.top, 4)
+                        .padding(.bottom, 110)
                         .frame(maxWidth: 680)
                         .frame(maxWidth: .infinity)
                     }
                 }
                 .overlay(alignment: .bottom) { nextButton }
             }
+
+            ConfettiBurst(trigger: successCount)
 
             if let result {
                 ResultView(result: result, skill: skill, onAgain: restart, onHome: { dismiss() })
@@ -52,7 +54,12 @@ struct LessonView: View {
         .toolbar(.hidden, for: .navigationBar)
         .sensoryFeedback(.success, trigger: successCount) { _, _ in store.settings.haptics }
         .sensoryFeedback(.error, trigger: errorCount) { _, _ in store.settings.haptics }
-        .onAppear { if questions.isEmpty { restart() } }
+        .onAppear {
+            if questions.isEmpty {
+                restart()
+                runDemoIfNeeded()
+            }
+        }
         .onDisappear { Speaker.shared.stop() }
     }
 
@@ -64,21 +71,20 @@ struct LessonView: View {
                 dismiss()
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 20, weight: .heavy))
+                    .font(.system(size: 18, weight: .heavy))
                     .foregroundStyle(Theme.ink)
-                    .frame(width: 48, height: 48)
-                    .background(Circle().fill(.white))
+                    .frame(width: 46, height: 46)
             }
+            .buttonStyle(CandyButtonStyle(color: .white, radius: 23, depth: 4))
             .accessibilityLabel("Close")
 
-            ProgressView(value: Double(index + (solved ? 1 : 0)), total: Double(max(questions.count, 1)))
-                .tint(skill.color)
-                .scaleEffect(x: 1, y: 3, anchor: .center)
+            StarTrack(total: questions.count, done: index + (solved ? 1 : 0), color: skill.color)
 
-            Text("\(min(index + 1, questions.count))/\(questions.count)")
-                .font(.kid(18, .bold))
-                .foregroundStyle(Theme.inkSoft)
-                .monospacedDigit()
+            Text(skill.emoji)
+                .font(.system(size: 26))
+                .frame(width: 46, height: 46)
+                .background(Circle().fill(.white))
+                .overlay(Circle().stroke(skill.color.lighter(0.3), lineWidth: 3))
         }
         .padding(.horizontal, 18)
         .padding(.top, 8)
@@ -88,7 +94,7 @@ struct LessonView: View {
         VStack(spacing: 18) {
             HStack(alignment: .top) {
                 Text(q.prompt)
-                    .font(.kid(26, .heavy))
+                    .font(.kid(27, .heavy))
                     .foregroundStyle(Theme.ink)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer()
@@ -96,22 +102,34 @@ struct LessonView: View {
                     Speaker.shared.say(q.spoken)
                 } label: {
                     Image(systemName: "speaker.wave.2.fill")
-                        .font(.system(size: 22, weight: .bold))
+                        .font(.system(size: 20, weight: .bold))
                         .foregroundStyle(.white)
-                        .frame(width: 52, height: 52)
-                        .background(Circle().fill(Theme.blue.gradient))
+                        .frame(width: 50, height: 50)
                 }
-                .buttonStyle(BouncyButtonStyle())
+                .buttonStyle(CandyButtonStyle(color: Theme.blue, radius: 25, depth: 4))
                 .accessibilityLabel("Read question out loud")
             }
             if q.visual != .empty {
                 QuestionVisualView(visual: q.visual)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 4)
+                    .padding(.vertical, 10)
+                    .padding(.horizontal, 6)
+                    .background(
+                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            .fill(skill.color.lighter(0.86))
+                    )
             }
         }
-        .padding(20)
-        .card()
+        .padding(18)
+        .background(
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(.white)
+                .shadow(color: Theme.ink.opacity(0.10), radius: 12, y: 6)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .stroke(skill.color.lighter(0.5), lineWidth: 3)
+        )
     }
 
     private func choicesGrid(_ q: Question) -> some View {
@@ -119,14 +137,17 @@ struct LessonView: View {
             if let first = q.choices.first, case .group = first { return true }
             return false
         }()
-        let columns = isGroup ? 1 : 2
-        return LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: columns), spacing: 12) {
+        let columns = isGroup ? 1 : (q.choices.count == 3 ? 3 : 2)
+        return LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 14), count: columns), spacing: 10) {
             ForEach(Array(q.choices.enumerated()), id: \.offset) { i, choice in
+                let mark = state(for: i, in: q)
                 Button { pick(i) } label: {
-                    ChoiceLabel(choice: choice, state: state(for: i, in: q))
+                    ChoiceLabel(choice: choice, state: mark)
                 }
-                .buttonStyle(BouncyButtonStyle())
+                .buttonStyle(CandyButtonStyle(color: ChoiceLabel.color(for: mark), radius: 24, depth: 7))
+                .opacity(mark == .wrong ? 0.55 : 1)
                 .disabled(solved || wrongPicks.contains(i))
+                .accessibilityLabel(ChoiceLabel.spoken(choice))
             }
         }
         .modifier(Shake(animatableData: shake))
@@ -142,16 +163,17 @@ struct LessonView: View {
     private var nextButton: some View {
         if solved, result == nil {
             Button(action: next) {
-                Text(index + 1 < questions.count ? "Next" : "Finish")
-                    .font(.kid(24, .heavy))
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: 520, minHeight: 64)
-                    .background(Capsule().fill(Theme.blue.gradient))
-                    .shadow(color: Theme.blue.opacity(0.4), radius: 8, y: 4)
+                HStack(spacing: 10) {
+                    Text(index + 1 < questions.count ? "Next" : "Finish")
+                    Image(systemName: index + 1 < questions.count ? "arrow.right" : "star.fill")
+                }
+                .font(.kid(24, .heavy))
+                .foregroundStyle(.white)
+                .frame(maxWidth: 520, minHeight: 62)
             }
-            .buttonStyle(BouncyButtonStyle())
+            .buttonStyle(CandyButtonStyle(color: Theme.green, radius: 31, depth: 7))
             .padding(.horizontal, 18)
-            .padding(.bottom, 12)
+            .padding(.bottom, 10)
             .transition(.move(edge: .bottom).combined(with: .opacity))
         }
     }
@@ -172,6 +194,7 @@ struct LessonView: View {
         wrongPicks = []
         solved = false
         bubble = ""
+        mood = .think
     }
 
     private func speakCurrent() {
@@ -187,6 +210,7 @@ struct LessonView: View {
             let cheer = Speaker.praise.randomElement() ?? "Great job!"
             withAnimation(.spring) {
                 solved = true
+                mood = .cheer
                 bubble = "\(cheer) \(q.explanation)"
             }
             if store.settings.readAloud { Speaker.shared.say("\(cheer) \(q.explanation)") }
@@ -196,7 +220,10 @@ struct LessonView: View {
             let nudge = Speaker.encourage.randomElement() ?? "Try again!"
             wrongPicks.insert(i)
             withAnimation(.linear(duration: 0.4)) { shake += 1 }
-            withAnimation(.spring) { bubble = "\(nudge) Hint: \(q.hint)" }
+            withAnimation(.spring) {
+                mood = .oops
+                bubble = "\(nudge) Hint: \(q.hint)"
+            }
             if store.settings.readAloud { Speaker.shared.say("\(nudge) \(q.hint)") }
         }
     }
@@ -220,6 +247,46 @@ struct LessonView: View {
             }
         }
     }
+
+    /// Screenshot mode only: show a correct or wrong answer, or the results card.
+    private func runDemoIfNeeded() {
+        guard let q = current else { return }
+        switch DemoMode.screen {
+        case "lessonCorrect":
+            pick(q.correctIndex)
+        case "lessonWrong":
+            pick((q.correctIndex + 1) % q.choices.count)
+        case "result":
+            result = LessonResult(stars: 3, firstTryCorrect: 5, total: 5, newStickers: 1)
+        default:
+            break
+        }
+    }
+}
+
+/// Row of little stars that fill in as questions are answered.
+struct StarTrack: View {
+    let total: Int
+    let done: Int
+    let color: Color
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(0..<max(total, 1), id: \.self) { i in
+                Image(systemName: i < done ? "star.fill" : "star")
+                    .font(.system(size: 20, weight: .heavy))
+                    .foregroundStyle(i < done ? Theme.yellow : Theme.ink.opacity(0.2))
+                    .scaleEffect(i == done - 1 ? 1.2 : 1)
+                    .animation(.spring(response: 0.3, dampingFraction: 0.5), value: done)
+                    .frame(maxWidth: .infinity)
+            }
+        }
+        .padding(.vertical, 10)
+        .padding(.horizontal, 12)
+        .background(Capsule().fill(.white.opacity(0.9)))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Question \(min(done + 1, total)) of \(total)")
+    }
 }
 
 struct ChoiceLabel: View {
@@ -227,29 +294,35 @@ struct ChoiceLabel: View {
     let choice: Choice
     let state: Mark
 
+    static func color(for mark: Mark) -> Color {
+        switch mark {
+        case .normal: return .white
+        case .right: return Theme.green.lighter(0.55)
+        case .wrong: return Theme.red.lighter(0.7)
+        }
+    }
+
+    static func spoken(_ choice: Choice) -> String {
+        switch choice {
+        case .text(let t): return t
+        case .group(_, let n): return "\(n)"
+        }
+    }
+
     var body: some View {
         content
-            .frame(maxWidth: .infinity, minHeight: 76)
+            .frame(maxWidth: .infinity, minHeight: 74)
             .padding(.vertical, 6)
-            .background(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .fill(fill)
-                    .shadow(color: Theme.ink.opacity(0.08), radius: 5, y: 3)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .stroke(stroke, lineWidth: 4)
-            )
             .overlay(alignment: .topTrailing) {
                 if state != .normal {
                     Image(systemName: state == .right ? "checkmark.circle.fill" : "xmark.circle.fill")
                         .font(.system(size: 26))
                         .foregroundStyle(state == .right ? Theme.green : Theme.red)
                         .background(Circle().fill(.white))
-                        .offset(x: 6, y: -6)
+                        .offset(x: 6, y: -8)
+                        .transition(.scale)
                 }
             }
-            .opacity(state == .wrong ? 0.6 : 1)
     }
 
     @ViewBuilder
@@ -257,7 +330,7 @@ struct ChoiceLabel: View {
         switch choice {
         case .text(let text):
             Text(text)
-                .font(.kid(text.count > 4 ? 26 : 34, .heavy))
+                .font(.kid(text.count > 4 ? 26 : 36, .heavy))
                 .foregroundStyle(Theme.ink)
                 .minimumScaleFactor(0.5)
                 .lineLimit(1)
@@ -265,22 +338,6 @@ struct ChoiceLabel: View {
         case .group(let emoji, let count):
             ObjectsGrid(emoji: emoji, count: count)
                 .padding(10)
-        }
-    }
-
-    private var fill: Color {
-        switch state {
-        case .normal: return .white
-        case .right: return Theme.green.opacity(0.2)
-        case .wrong: return Theme.red.opacity(0.12)
-        }
-    }
-
-    private var stroke: Color {
-        switch state {
-        case .normal: return .clear
-        case .right: return Theme.green
-        case .wrong: return Theme.red.opacity(0.6)
         }
     }
 }

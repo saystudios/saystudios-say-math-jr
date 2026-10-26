@@ -144,7 +144,7 @@ struct QuestionGenerator {
         case .k:
             let thing = Thing.all.randomElement(using: &rng)!
             let a = Int.random(in: 1...5, using: &rng)
-            let b = Int.random(in: 0...min(5, 10 - a), using: &rng)
+            let b = Int.random(in: 1...min(5, 10 - a), using: &rng)
             let (choices, idx) = Self.numberChoices(correct: a + b, range: 0...12, count: grade.choiceCount, spread: 2, using: &rng)
             return Question(
                 skill: .addition,

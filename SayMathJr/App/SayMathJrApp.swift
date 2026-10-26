@@ -2,7 +2,11 @@ import SwiftUI
 
 @main
 struct SayMathJrApp: App {
-    @StateObject private var store = ProgressStore()
+    @StateObject private var store: ProgressStore
+
+    init() {
+        _store = StateObject(wrappedValue: DemoMode.makeStore() ?? ProgressStore())
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -42,28 +46,28 @@ extension Skill {
     }
 }
 
-/// Pip the puppy, the app's helper, with a speech bubble.
-struct MascotBubble: View {
-    let text: String
-    var mascot: String = "🐶"
+/// Screenshot/demo mode, used by the cloud build to capture screens.
+/// Launch with arguments like `-demoScreen home -demoSkill counting -demoGrade K`.
+/// Never active in normal use.
+enum DemoMode {
+    static var screen: String? { UserDefaults.standard.string(forKey: "demoScreen") }
+    static var skill: Skill { Skill(rawValue: UserDefaults.standard.string(forKey: "demoSkill") ?? "") ?? .addition }
+    static var isOn: Bool { screen != nil }
 
-    var body: some View {
-        HStack(alignment: .center, spacing: 10) {
-            Text(mascot)
-                .font(.system(size: 54))
-                .accessibilityHidden(true)
-            Text(text)
-                .font(.kid(19, .semibold))
-                .foregroundStyle(Theme.ink)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .background(
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .fill(.white)
-                        .shadow(color: Theme.ink.opacity(0.08), radius: 6, y: 3)
-                )
-                .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: 0)
+    @MainActor
+    static func makeStore() -> ProgressStore? {
+        guard let screen, let defaults = UserDefaults(suiteName: "SayMathJrDemo") else { return nil }
+        defaults.removePersistentDomain(forName: "SayMathJrDemo")
+        let store = ProgressStore(defaults: defaults, key: "demo")
+        store.updateSettings { $0.readAloud = false }
+        if screen != "onboarding" {
+            let grade = Grade(rawValue: UserDefaults.standard.string(forKey: "demoGrade") ?? "K") ?? .k
+            store.saveProfile(Profile(name: "Mia", grade: grade, avatar: "🐶"))
+            let earned: [(Skill, Int)] = [(.counting, 3), (.addition, 2), (.shapes, 3), (.patterns, 1), (.compare, 3), (.makeTen, 2)]
+            for (skill, stars) in earned {
+                store.recordLesson(skill: skill, stars: stars, firstTryCorrect: stars + 2, questions: 5)
+            }
         }
+        return store
     }
 }

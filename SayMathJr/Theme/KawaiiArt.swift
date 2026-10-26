@@ -615,3 +615,45 @@ struct BubbleShape: Shape {
         return p
     }
 }
+
+// MARK: - Skill icon (artwork when available, emoji otherwise)
+
+extension Skill {
+    var iconAssetName: String {
+        switch self {
+        case .counting: return "icon_counting"
+        case .compare: return "icon_compare"
+        case .addition: return "icon_addition"
+        case .subtraction: return "icon_subtraction"
+        case .makeTen: return "icon_numberbonds"
+        case .shapes: return "icon_shapes"
+        case .patterns: return "icon_patterns"
+        case .skipCounting: return "icon_skipcounting"
+        case .tensOnes: return "icon_tensones"
+        case .time: return "icon_time"
+        }
+    }
+}
+
+struct SkillIcon: View {
+    let skill: Skill
+    var size: CGFloat
+
+    var body: some View {
+        if let art = UIImage(named: skill.iconAssetName) {
+            Image(uiImage: art)
+                .resizable()
+                .interpolation(.high)
+                .scaledToFit()
+                .frame(width: size, height: size)
+                .accessibilityHidden(true)
+        } else {
+            Text(skill.emoji)
+                .font(.system(size: size * 0.6))
+                .frame(width: size, height: size)
+                .background(Circle().fill(.white))
+                .overlay(Circle().stroke(skill.color.lighter(0.25), lineWidth: max(3, size * 0.05)))
+                .accessibilityHidden(true)
+        }
+    }
+}

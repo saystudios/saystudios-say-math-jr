@@ -157,11 +157,7 @@ struct SkillTile: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            Text(skill.emoji)
-                .font(.system(size: 42))
-                .frame(width: 74, height: 74)
-                .background(Circle().fill(.white))
-                .overlay(Circle().stroke(skill.color.lighter(0.25), lineWidth: 4))
+            SkillIcon(skill: skill, size: 80)
                 .overlay(alignment: .topTrailing) {
                     if progress.bestStars == 3 {
                         Image(systemName: "crown.fill")

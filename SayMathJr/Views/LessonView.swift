@@ -80,11 +80,7 @@ struct LessonView: View {
 
             StarTrack(total: questions.count, done: index + (solved ? 1 : 0), color: skill.color)
 
-            Text(skill.emoji)
-                .font(.system(size: 26))
-                .frame(width: 46, height: 46)
-                .background(Circle().fill(.white))
-                .overlay(Circle().stroke(skill.color.lighter(0.3), lineWidth: 3))
+            SkillIcon(skill: skill, size: 48)
         }
         .padding(.horizontal, 18)
         .padding(.top, 8)

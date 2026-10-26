@@ -25,6 +25,16 @@ extension Color {
 
 enum PipMood: Equatable {
     case happy, cheer, think, oops
+
+    /// Image name in the asset catalog. If the image is missing, Pip is drawn in code instead.
+    var assetName: String {
+        switch self {
+        case .happy: return "pip_happy"
+        case .cheer: return "pip_cheer"
+        case .think: return "pip_think"
+        case .oops: return "pip_oops"
+        }
+    }
 }
 
 /// Pip, the app's original puppy helper, drawn entirely in code.
@@ -48,10 +58,19 @@ struct PipView: View {
                         .transition(.scale.combined(with: .opacity))
                 }
             }
-            Canvas { ctx, canvasSize in
-                PipDrawing(mood: mood).draw(in: &ctx, size: canvasSize)
+            if let art = UIImage(named: mood.assetName) {
+                // Finished artwork (Assets.xcassets/pip_<mood>) when it has been added
+                Image(uiImage: art)
+                    .resizable()
+                    .interpolation(.high)
+                    .scaledToFit()
+                    .frame(width: size * 1.12, height: size * 1.12)
+            } else {
+                Canvas { ctx, canvasSize in
+                    PipDrawing(mood: mood).draw(in: &ctx, size: canvasSize)
+                }
+                .frame(width: size, height: size)
             }
-            .frame(width: size, height: size)
         }
         .frame(width: size, height: size)
         .scaleEffect(pop ? 1.12 : 1)

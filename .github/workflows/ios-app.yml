@@ -1,0 +1,223 @@
+# Say Math Jr.: builds the iPhone/iPad app on GitHub's Mac computers and uploads it to
+# App Store Connect (TestFlight). No Mac needed. Same setup as Boba Boss and Say Math.
+#
+# Run it from GitHub: Actions > "Build iPhone app" > Run workflow.
+#
+# Needs these repository secrets (Settings > Secrets and variables > Actions) — the same
+# values you use for Boba Boss and Say Math:
+#   APPLE_TEAM_ID   10-character Team ID from developer.apple.com > Membership
+#   ASC_KEY_ID      App Store Connect API key ID
+#   ASC_ISSUER_ID   App Store Connect API issuer ID
+#   ASC_KEY_P8      full text of the AuthKey_XXXX.p8 file (including BEGIN/END lines)
+# Signing: by default the build uses Apple's cloud signing, so the four secrets above are all it
+# needs (the API key must have the Admin role). Apple manages the distribution certificate and
+# profile; nothing on your account is revoked.
+# Optional manual signing instead: set APPLE_DISTRIBUTION_P12_BASE64, APPLE_DISTRIBUTION_P12_PASSWORD
+# and APP_STORE_PROFILE_BASE64 (an App Store profile for com.saystudios.saymathjr). Never create or
+# revoke certificates in this workflow.
+# Optional:
+#   BUNDLE_ID       defaults to com.saystudios.saymathjr
+# The App ID is registered automatically on the first run. You must create the app once in
+# App Store Connect (Apps > + > New App) with the same bundle ID before the upload can succeed.
+
+name: Build iPhone app
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version number shown on the App Store (for example 1.0)"
+        required: true
+        default: "1.0"
+
+jobs:
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 60
+    env:
+      BUNDLE_ID: ${{ secrets.BUNDLE_ID || 'com.saystudios.saymathjr' }}
+      TEAM: ${{ secrets.APPLE_TEAM_ID }}
+      KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ISSUER: ${{ secrets.ASC_ISSUER_ID }}
+      P8: ${{ secrets.ASC_KEY_P8 }}
+      SIGNING_P12_BASE64: ${{ secrets.APPLE_DISTRIBUTION_P12_BASE64 }}
+      SIGNING_P12_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_P12_PASSWORD }}
+      SIGNING_PROFILE_BASE64: ${{ secrets.APP_STORE_PROFILE_BASE64 }}
+      VER: ${{ inputs.version }}
+      BUILD: ${{ github.run_number }}
+      PROFILE_NAME: SayMathJr CI ${{ github.run_id }}
+      PROFILE_PREFIX: "SayMathJr CI "
+      APP_NAME: SayMathJr
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check setup
+        run: |
+          missing=""
+          for v in TEAM KEY_ID ISSUER P8; do [ -z "${!v}" ] && missing="$missing $v"; done
+          if [ -n "$missing" ]; then echo "::error::Missing secrets:$missing (add APPLE_TEAM_ID, ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8 in Settings > Secrets and variables > Actions)"; exit 1; fi
+          echo "Building Say Math Jr. $VER (build $BUILD) for $BUNDLE_ID"
+          echo "SIGN_DIR=$RUNNER_TEMP/sign" >> "$GITHUB_ENV"
+
+      - name: Pick the newest Xcode
+        run: |
+          XC=$(ls -d /Applications/Xcode_*.app | grep -v -i beta | sort -V | tail -1)
+          sudo xcode-select -s "$XC"
+          xcodebuild -version
+
+      - name: App Store Connect key
+        run: |
+          mkdir -p ~/private_keys
+          F=~/private_keys/AuthKey_$KEY_ID.p8
+          # Rebuild the key file, whatever way it was pasted (missing lines, extra spaces, Windows line endings)
+          BODY=$(printf '%s' "$P8" | tr -d '\r' | sed -e 's/-----BEGIN [A-Z ]*-----//g' -e 's/-----END [A-Z ]*-----//g' | tr -d ' \n\t')
+          { echo "-----BEGIN PRIVATE KEY-----"; printf '%s\n' "$BODY" | fold -w 64; echo "-----END PRIVATE KEY-----"; } > "$F"
+          if ! openssl pkey -in "$F" -noout 2>/dev/null && ! openssl ec -in "$F" -noout 2>/dev/null; then
+            echo "::error::The ASC_KEY_P8 secret is not a valid Apple key. Open the AuthKey_${KEY_ID}.p8 file, copy ALL of its text and save it again as the ASC_KEY_P8 secret."
+            exit 1
+          fi
+          echo "Apple key looks good (${#BODY} characters)."
+
+      - name: Check Apple login
+        run: |
+          cat > /tmp/check.rb <<'EOF'
+          require 'openssl'; require 'json'; require 'base64'; require 'net/http'; require 'uri'
+          kid=ENV['KEY_ID'].to_s.strip; iss=ENV['ISSUER'].to_s.strip; bid=ENV['BUNDLE_ID'].to_s.strip
+          key=OpenSSL::PKey.read(File.read(ENV['KEYFILE']))
+          b64=->(s){ Base64.urlsafe_encode64(s, padding: false) }
+          now=Time.now.to_i
+          data=b64.({alg:'ES256',kid:kid,typ:'JWT'}.to_json)+'.'+b64.({iss:iss,iat:now,exp:now+600,aud:'appstoreconnect-v1'}.to_json)
+          der=key.sign(OpenSSL::Digest::SHA256.new, data)
+          seq=OpenSSL::ASN1.decode(der)
+          sig=seq.value.map{|i| i.value.to_s(2).rjust(32,"\0")}.join
+          jwt=data+'.'+b64.(sig)
+          problems=[]
+          problems << "ASC_KEY_ID should be 10 letters and numbers (it has #{kid.length} characters)." unless kid =~ /\A[A-Z0-9]{10}\z/
+          problems << "ASC_ISSUER_ID should look like 12345678-abcd-1234-abcd-123456789012 (it has #{iss.length} characters)." unless iss =~ /\A\h{8}-\h{4}-\h{4}-\h{4}-\h{12}\z/
+          problems << "BUNDLE_ID has spaces or unusual characters." unless bid =~ /\A[A-Za-z0-9.\-]+\z/
+          problems.each{|p| puts "::error::#{p}"}
+          uri=URI("https://api.appstoreconnect.apple.com/v1/bundleIds?filter[identifier]=#{bid}&limit=5")
+          req=Net::HTTP::Get.new(uri); req['Authorization']="Bearer #{jwt}"
+          res=Net::HTTP.start(uri.host,uri.port,use_ssl:true){|h| h.request(req)}
+          case res.code
+          when '200'
+            ids=JSON.parse(res.body)['data'].map{|d| d['attributes']['identifier']}
+            if ids.include?(bid) then puts "Apple login works, and the App ID #{bid} is registered."
+            else puts "Apple login works. The App ID #{bid} isn't registered yet; the build registers it." end
+            u2=URI("https://api.appstoreconnect.apple.com/v1/apps?filter[bundleId]=#{bid}&limit=1")
+            r2=Net::HTTP::Get.new(u2); r2['Authorization']="Bearer #{jwt}"
+            a=Net::HTTP.start(u2.host,u2.port,use_ssl:true){|h| h.request(r2)}
+            if a.code=='200' && JSON.parse(a.body)['data'].empty?
+              puts "::warning::No app with bundle ID #{bid} in App Store Connect yet. The build will still be made, but the upload needs it: App Store Connect > Apps > + > New App (bundle ID #{bid})."
+            end
+          when '401'
+            puts "::error::Apple rejected the login (401). ASC_KEY_ID and ASC_ISSUER_ID must come from the same Team Keys page as the AuthKey file. Check that ASC_KEY_ID matches the file name AuthKey_XXXXXXXXXX.p8, and copy the Issuer ID again."; exit 1
+          when '403'
+            puts "::error::Apple login works, but this key is not allowed to do this (403). Make a Team Key with Admin access and update ASC_KEY_ID and ASC_KEY_P8."; exit 1
+          else
+            puts "::error::Unexpected answer from Apple (#{res.code}): #{res.body[0,300]}"; exit 1
+          end
+          exit 1 unless problems.empty?
+          EOF
+          KEYFILE=~/private_keys/AuthKey_$KEY_ID.p8 ruby /tmp/check.rb
+
+      - name: Choose signing
+        run: |
+          if [ -n "$SIGNING_P12_BASE64" ] && [ -n "$SIGNING_P12_PASSWORD" ] && [ -n "$SIGNING_PROFILE_BASE64" ]; then
+            echo "SIGN_MODE=manual" >> "$GITHUB_ENV"; echo "Using your own certificate and profile (manual signing)."
+          else
+            echo "SIGN_MODE=cloud" >> "$GITHUB_ENV"; echo "Using Apple cloud signing with the App Store Connect API key."
+          fi
+
+      - name: Import reusable Apple signing assets
+        if: env.SIGN_MODE == 'manual'
+        shell: bash
+        run: |
+          SIGN_PATH="$RUNNER_TEMP/reusable-signing"
+          mkdir -p "$SIGN_PATH"
+          printf '%s' "$SIGNING_P12_BASE64" | base64 --decode > "$SIGN_PATH/distribution.p12"
+          printf '%s' "$SIGNING_PROFILE_BASE64" | base64 --decode > "$SIGN_PATH/app.mobileprovision"
+          openssl pkcs12 -in "$SIGN_PATH/distribution.p12" -passin env:SIGNING_P12_PASSWORD -noout
+          security cms -D -i "$SIGN_PATH/app.mobileprovision" > "$SIGN_PATH/profile.plist"
+          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$SIGN_PATH/profile.plist")
+          PROFILE_NAME=$(/usr/libexec/PlistBuddy -c 'Print :Name' "$SIGN_PATH/profile.plist")
+          PROFILE_APP_ID=$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' "$SIGN_PATH/profile.plist")
+          case "$PROFILE_APP_ID" in *."$BUNDLE_ID") ;; *) echo "::error::Provisioning profile does not match bundle ID $BUNDLE_ID"; exit 1;; esac
+          KC_PASSWORD="$(openssl rand -hex 24)"
+          KC_PATH="$SIGN_PATH/build.keychain-db"
+          security create-keychain -p "$KC_PASSWORD" "$KC_PATH"
+          security unlock-keychain -p "$KC_PASSWORD" "$KC_PATH"
+          security set-keychain-settings -lut 21600 "$KC_PATH"
+          security import "$SIGN_PATH/distribution.p12" -k "$KC_PATH" -P "$SIGNING_P12_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KC_PASSWORD" "$KC_PATH"
+          security list-keychains -d user -s "$KC_PATH"
+          security find-identity -v -p codesigning "$KC_PATH"
+          for d in "$HOME/Library/MobileDevice/Provisioning Profiles" "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"; do mkdir -p "$d"; cp "$SIGN_PATH/app.mobileprovision" "$d/$PROFILE_UUID.mobileprovision"; done
+          echo "PROFILE_NAME=$PROFILE_NAME" >> "$GITHUB_ENV"
+          echo "KEYCHAIN_PATH=$KC_PATH" >> "$GITHUB_ENV"
+
+      - name: Set up App Store signing in the project
+        run: python3 .github/scripts/set-signing.py SayMathJr.xcodeproj/project.pbxproj
+
+      - name: Build the app
+        run: |
+          AUTH=()
+          if [ "$SIGN_MODE" = cloud ]; then
+            AUTH=(-allowProvisioningUpdates -authenticationKeyPath ~/private_keys/AuthKey_$KEY_ID.p8 -authenticationKeyID "$KEY_ID" -authenticationKeyIssuerID "$ISSUER")
+          fi
+          xcodebuild -project SayMathJr.xcodeproj -scheme SayMathJr -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/SayMathJr.xcarchive" \
+            "${AUTH[@]}" archive > "$RUNNER_TEMP/build.log" 2>&1 || true
+          if [ "$SIGN_MODE" = cloud ] && [ ! -d "$RUNNER_TEMP/SayMathJr.xcarchive" ]; then
+            # Fallback: build without signing; the upload step signs it with Apple's cloud certificate.
+            grep -E "error:" "$RUNNER_TEMP/build.log" | sort -u | head -5
+            echo "Signed build didn't work; building unsigned and letting the upload step sign it."
+            xcodebuild -project SayMathJr.xcodeproj -scheme SayMathJr -configuration Release \
+              -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/SayMathJr.xcarchive" \
+              CODE_SIGNING_ALLOWED=NO archive > "$RUNNER_TEMP/build.log" 2>&1 || true
+          fi
+          tail -n 200 "$RUNNER_TEMP/build.log"
+          grep -E "error:|\*\* ARCHIVE FAILED" "$RUNNER_TEMP/build.log" | sort -u | head -n 8 | while IFS= read -r l; do echo "::error::$l"; done
+          test -d "$RUNNER_TEMP/SayMathJr.xcarchive" || { echo "::error::Build failed. Scroll up for the first error."; exit 1; }
+
+      - name: Upload to App Store Connect
+        run: |
+          if [ "$SIGN_MODE" = cloud ]; then
+            SIGNING="<key>signingStyle</key><string>automatic</string>"
+            EXTRA=(-allowProvisioningUpdates)
+          else
+            SIGNING="<key>signingStyle</key><string>manual</string><key>signingCertificate</key><string>Apple Distribution</string><key>provisioningProfiles</key><dict><key>$BUNDLE_ID</key><string>$PROFILE_NAME</string></dict>"
+            EXTRA=()
+          fi
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>$TEAM</string>
+            $SIGNING
+            <key>manageAppVersionAndBuildNumber</key><false/>
+            <key>uploadSymbols</key><true/>
+          </dict></plist>
+          EOF
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/SayMathJr.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/export" \
+            "${EXTRA[@]}" \
+            -authenticationKeyPath ~/private_keys/AuthKey_$KEY_ID.p8 \
+            -authenticationKeyID "$KEY_ID" \
+            -authenticationKeyIssuerID "$ISSUER"
+          echo "Uploaded Say Math Jr. $VER (build $BUILD). It appears in App Store Connect > TestFlight in about 15-30 minutes."
+
+      - name: Remove signing files from this computer
+        if: always()
+        run: |
+          [ -n "${KEYCHAIN_PATH:-}" ] && security delete-keychain "$KEYCHAIN_PATH" 2>/dev/null || true
+          rm -rf "$RUNNER_TEMP/reusable-signing"
+
+      - name: Clean up key
+        if: always()
+        run: rm -rf ~/private_keys

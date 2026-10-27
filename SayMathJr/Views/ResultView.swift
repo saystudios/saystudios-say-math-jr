@@ -24,9 +24,7 @@ struct ResultView: View {
                 PipView(mood: .trophy, size: 130)
                     .padding(.top, -70)
 
-                Text(result.stars == 3 ? "Perfect!" : "Great Work!")
-                    .font(.kid(36, .black))
-                    .foregroundStyle(Theme.ink)
+                WoodSign(text: result.stars == 3 ? "Perfect!" : "Great Work!", size: 32)
 
                 HStack(alignment: .bottom, spacing: 8) {
                     ForEach(0..<3, id: \.self) { i in

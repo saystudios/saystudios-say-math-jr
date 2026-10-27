@@ -42,6 +42,14 @@ final class ProgressStore: ObservableObject {
         "🐶", "🐱", "🐰", "🐼", "🦊", "🐨", "🦁", "🐯", "🐸", "🐵",
         "🦄", "🐳", "🦕", "🐙", "🦉", "🐝", "🌈", "🚀", "🏆", "👑",
     ]
+    /// Asset names for finished sticker artwork, in the same order as `stickers`.
+    /// A sticker without artwork shows its emoji instead.
+    static let stickerArt: [String] = [
+        "sticker_puppy", "sticker_kitten", "sticker_bunny", "sticker_panda", "sticker_fox",
+        "sticker_koala", "sticker_lion", "sticker_tiger", "sticker_frog", "sticker_monkey",
+        "sticker_unicorn", "sticker_whale", "sticker_dinosaur", "sticker_octopus", "sticker_owl",
+        "sticker_bee", "sticker_rainbow", "sticker_rocket", "sticker_trophy", "sticker_crown",
+    ]
     static let avatars = ["🐶", "🐱", "🐰", "🐼", "🦊", "🐨", "🦄", "🐸"]
 
     private let key: String

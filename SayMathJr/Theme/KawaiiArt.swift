@@ -679,3 +679,54 @@ struct SkillIcon: View {
         }
     }
 }
+
+// MARK: - Wooden sign (title plaques)
+
+struct WoodSign: View {
+    let text: String
+    var size: CGFloat = 28
+
+    static let wood = Color(red: 0.97, green: 0.80, blue: 0.55)
+    static let woodDark = Color(red: 0.90, green: 0.66, blue: 0.40)
+    static let outline = Color(red: 0.47, green: 0.29, blue: 0.17)
+    static let ink = Color(red: 0.36, green: 0.20, blue: 0.12)
+
+    var body: some View {
+        Text(text)
+            .font(.kid(size, .black))
+            .foregroundStyle(Self.ink)
+            .multilineTextAlignment(.center)
+            .lineLimit(2)
+            .minimumScaleFactor(0.6)
+            .padding(.horizontal, 26)
+            .padding(.vertical, 10)
+            .background(WoodPlank())
+            .accessibilityAddTraits(.isHeader)
+    }
+}
+
+struct WoodPlank: View {
+    var radius: CGFloat = 18
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        ZStack {
+            shape.fill(WoodSign.outline.opacity(0.85)).offset(y: 5)
+            shape.fill(LinearGradient(colors: [WoodSign.wood, WoodSign.woodDark], startPoint: .top, endPoint: .bottom))
+            GeometryReader { geo in
+                // Wood grain
+                Capsule().fill(WoodSign.outline.opacity(0.14))
+                    .frame(width: geo.size.width * 0.34, height: 3)
+                    .position(x: geo.size.width * 0.24, y: geo.size.height * 0.32)
+                Capsule().fill(WoodSign.outline.opacity(0.12))
+                    .frame(width: geo.size.width * 0.28, height: 3)
+                    .position(x: geo.size.width * 0.74, y: geo.size.height * 0.72)
+                Capsule().fill(.white.opacity(0.35))
+                    .frame(width: geo.size.width * 0.5, height: 4)
+                    .position(x: geo.size.width * 0.5, y: 7)
+            }
+            .clipShape(shape)
+            shape.stroke(WoodSign.outline, lineWidth: 4)
+        }
+    }
+}

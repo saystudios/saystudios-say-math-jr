@@ -12,7 +12,7 @@ struct StickerBookView: View {
                 SceneBackground(showHills: false)
                 ScrollView {
                     VStack(spacing: 18) {
-                        BubbleTitle(text: "Stickers", size: 40)
+                        WoodSign(text: "Sticker Book", size: 30)
                             .padding(.top, 4)
                         MascotBubble(
                             text: store.unlockedStickerCount >= ProgressStore.stickers.count
@@ -23,7 +23,13 @@ struct StickerBookView: View {
                             ForEach(Array(ProgressStore.stickers.enumerated()), id: \.offset) { i, sticker in
                                 let unlocked = i < store.unlockedStickerCount
                                 ZStack {
-                                    if unlocked {
+                                    if unlocked, let art = UIImage(named: ProgressStore.stickerArt[i]) {
+                                        Image(uiImage: art)
+                                            .resizable()
+                                            .scaledToFit()
+                                            .frame(width: 72, height: 72)
+                                            .rotationEffect(.degrees(Double((i * 37) % 21) - 10))
+                                    } else if unlocked {
                                         Text(sticker)
                                             .font(.system(size: 46))
                                             .padding(6)

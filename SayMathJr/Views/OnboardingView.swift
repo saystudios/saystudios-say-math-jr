@@ -25,7 +25,7 @@ struct OnboardingView: View {
                     }
                     .padding(.top, 24)
 
-                    MascotBubble(text: "Hi! I'm Pip. Let's set up your player!", mood: .happy, pipSize: 96)
+                    MascotBubble(text: "Hi! I'm Pip. Let's set up your player!", mood: .wave, pipSize: 96)
 
                     VStack(alignment: .leading, spacing: 12) {
                         label("Pick your buddy")

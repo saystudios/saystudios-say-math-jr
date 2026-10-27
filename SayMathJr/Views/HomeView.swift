@@ -11,30 +11,25 @@ struct HomeView: View {
 
     var body: some View {
         NavigationStack(path: $path) {
-            ZStack {
-                SceneBackground()
-                ScrollView {
-                    VStack(spacing: 16) {
-                        header
-                        MascotBubble(text: greeting, mood: .happy, pipSize: 84)
-                        statsRow
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 14)], spacing: 12) {
-                            ForEach(skills) { skill in
-                                NavigationLink(value: skill) {
-                                    SkillTile(skill: skill, progress: store.progress(for: skill))
-                                }
-                                .buttonStyle(CandyButtonStyle(color: skill.color.lighter(0.62), radius: 28, depth: 7))
-                            }
+            GeometryReader { geo in
+                let contentWidth = min(geo.size.width, 760) - 32
+                ZStack {
+                    SceneBackground()
+                    ScrollView {
+                        VStack(spacing: 16) {
+                            topBar
+                            hero
+                            skillGrid(width: contentWidth)
+                            Text("© Say Studios LLC")
+                                .font(.kid(12, .semibold))
+                                .foregroundStyle(Theme.ink.opacity(0.55))
+                                .padding(.top, 6)
                         }
-                        bottomButtons
-                        Text("© Say Studios LLC")
-                            .font(.kid(12, .medium))
-                            .foregroundStyle(Theme.ink.opacity(0.6))
-                            .padding(.top, 4)
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 16)
+                        .frame(maxWidth: 760)
+                        .frame(maxWidth: .infinity)
                     }
-                    .padding(18)
-                    .frame(maxWidth: 820)
-                    .frame(maxWidth: .infinity)
                 }
             }
             .navigationDestination(for: Skill.self) { skill in
@@ -54,65 +49,90 @@ struct HomeView: View {
         .onAppear(perform: openDemoScreen)
     }
 
-    private var greeting: String {
-        let done = skills.filter { store.progress(for: $0).bestStars > 0 }.count
-        if done == 0 { return "Pick a game to start. You've got this!" }
-        if done == skills.count { return "Wow, you tried every game! Can you get 3 stars on all?" }
-        return "Yay! Pick another game to earn more stars."
-    }
+    // MARK: Top bar
 
-    private var header: some View {
-        HStack(spacing: 12) {
-            Text(store.profile?.avatar ?? "🐶")
-                .font(.system(size: 36))
-                .frame(width: 62, height: 62)
-                .background(Circle().fill(.white))
-                .overlay(Circle().stroke(Theme.yellow, lineWidth: 4))
-                .shadow(color: Theme.ink.opacity(0.12), radius: 4, y: 3)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Hi, \(store.profile?.name ?? "Friend")!")
-                    .font(.kid(28, .heavy))
-                    .foregroundStyle(Theme.ink)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.6)
-                Text(store.grade.title)
-                    .font(.kid(14, .bold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 3)
-                    .background(Capsule().fill(Theme.purple))
-            }
+    private var topBar: some View {
+        HStack {
+            RoundIconButton(systemName: "gearshape.fill", label: "Grown-ups") { showGate = true }
             Spacer()
-        }
-    }
-
-    private var statsRow: some View {
-        HStack(spacing: 12) {
-            StatPill(icon: "star.fill", value: "\(store.data.totalStars)", label: "Stars", color: Theme.yellow)
-            StatPill(icon: "flame.fill", value: "\(store.currentStreak)", label: "Day streak", color: Theme.orange)
-            StatPill(icon: "gift.fill", value: "\(store.unlockedStickerCount)", label: "Stickers", color: Theme.pink)
-        }
-    }
-
-    private var bottomButtons: some View {
-        HStack(spacing: 12) {
-            Button { showStickers = true } label: {
-                Label("Sticker Book", systemImage: "book.fill")
-                    .font(.kid(18, .heavy))
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity, minHeight: 54)
+            HStack(spacing: 14) {
+                PillStat(systemName: "star.fill", color: Theme.yellow.darker(0.05), value: store.data.totalStars)
+                PillStat(systemName: "flame.fill", color: Theme.orange, value: store.currentStreak)
             }
-            .buttonStyle(CandyButtonStyle(color: Theme.purple, radius: 27))
-
-            Button { showGate = true } label: {
-                Label("Grown-ups", systemImage: "lock.fill")
-                    .font(.kid(18, .heavy))
-                    .foregroundStyle(Theme.ink)
-                    .frame(maxWidth: .infinity, minHeight: 54)
-            }
-            .buttonStyle(CandyButtonStyle(color: .white, radius: 27))
+            .padding(.horizontal, 16)
+            .padding(.vertical, 9)
+            .background(Capsule().fill(.white.opacity(0.92)))
+            .shadow(color: Theme.ink.opacity(0.1), radius: 4, y: 2)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(store.data.totalStars) stars, \(store.currentStreak) day streak")
+            Spacer()
+            RoundIconButton(systemName: "book.fill", label: "Sticker Book") { showStickers = true }
+                .overlay(alignment: .topTrailing) {
+                    if store.unlockedStickerCount > 0 {
+                        Text("\(store.unlockedStickerCount)")
+                            .font(.kid(12, .black))
+                            .foregroundStyle(.white)
+                            .frame(minWidth: 20, minHeight: 20)
+                            .background(Circle().fill(Theme.pink))
+                            .offset(x: 4, y: -4)
+                    }
+                }
         }
         .padding(.top, 6)
+    }
+
+    // MARK: Hero
+
+    @ViewBuilder
+    private var hero: some View {
+        VStack(spacing: -22) {
+            if let art = UIImage(named: "home_hero") {
+                Image(uiImage: art)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 210)
+                    .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 30, style: .continuous).stroke(.white, lineWidth: 5))
+                    .shadow(color: Theme.ink.opacity(0.15), radius: 10, y: 6)
+                    .accessibilityHidden(true)
+            } else {
+                PipView(mood: .happy, size: 170)
+                    .padding(.bottom, 10)
+            }
+            VStack(spacing: 2) {
+                WoodSign(text: "Hi, \(store.profile?.name ?? "Friend")!", size: 26)
+                Text(store.grade.title)
+                    .font(.kid(13, .heavy))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(Theme.purple))
+                    .padding(.top, 8)
+            }
+        }
+    }
+
+    // MARK: Grid (3 per row, last row centered)
+
+    private func skillGrid(width: CGFloat) -> some View {
+        let spacing: CGFloat = 12
+        let tileWidth = (width - spacing * 2) / 3
+        let rows = stride(from: 0, to: skills.count, by: 3).map { Array(skills[$0..<min($0 + 3, skills.count)]) }
+        return VStack(spacing: spacing) {
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                HStack(spacing: spacing) {
+                    ForEach(row) { skill in
+                        NavigationLink(value: skill) {
+                            SkillTile(skill: skill, progress: store.progress(for: skill))
+                                .frame(width: tileWidth)
+                        }
+                        .buttonStyle(CandyButtonStyle(color: skill.color.lighter(0.68), radius: 24, depth: 5))
+                    }
+                }
+            }
+        }
+        .padding(.top, 4)
     }
 
     private func openDemoScreen() {
@@ -127,27 +147,37 @@ struct HomeView: View {
     }
 }
 
-struct StatPill: View {
-    let icon: String
-    let value: String
+struct RoundIconButton: View {
+    let systemName: String
     let label: String
-    let color: Color
+    let action: () -> Void
 
     var body: some View {
-        VStack(spacing: 2) {
-            HStack(spacing: 5) {
-                Image(systemName: icon)
-                    .font(.system(size: 18, weight: .heavy))
-                    .foregroundStyle(color.darker(0.05))
-                Text(value)
-                    .font(.kid(24, .heavy))
-                    .foregroundStyle(Theme.ink)
-            }
-            Text(label).font(.kid(12, .bold)).foregroundStyle(Theme.inkSoft)
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 20, weight: .bold))
+                .foregroundStyle(Theme.blue)
+                .frame(width: 50, height: 50)
         }
-        .frame(maxWidth: .infinity, minHeight: 66)
-        .candy(.white, radius: 22, depth: 5)
-        .accessibilityElement(children: .combine)
+        .buttonStyle(CandyButtonStyle(color: .white, radius: 25, depth: 4))
+        .accessibilityLabel(label)
+    }
+}
+
+struct PillStat: View {
+    let systemName: String
+    let color: Color
+    let value: Int
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: systemName)
+                .font(.system(size: 18, weight: .heavy))
+                .foregroundStyle(color)
+            Text("\(value)")
+                .font(.kid(20, .black))
+                .foregroundStyle(Theme.ink)
+        }
     }
 }
 
@@ -156,37 +186,36 @@ struct SkillTile: View {
     let progress: SkillProgress
 
     var body: some View {
-        VStack(spacing: 8) {
-            Text(skill.emoji)
-                .font(.system(size: 42))
-                .frame(width: 74, height: 74)
-                .background(Circle().fill(.white))
-                .overlay(Circle().stroke(skill.color.lighter(0.25), lineWidth: 4))
+        VStack(spacing: 6) {
+            SkillIcon(skill: skill, size: 62)
                 .overlay(alignment: .topTrailing) {
                     if progress.bestStars == 3 {
                         Image(systemName: "crown.fill")
-                            .font(.system(size: 18, weight: .bold))
+                            .font(.system(size: 15, weight: .bold))
                             .foregroundStyle(Theme.yellow)
                             .shadow(color: Theme.orange.opacity(0.5), radius: 0, y: 2)
                             .rotationEffect(.degrees(20))
-                            .offset(x: 6, y: -6)
+                            .offset(x: 8, y: -6)
                     }
                 }
             Text(skill.title)
-                .font(.kid(19, .heavy))
+                .font(.kid(15, .heavy))
                 .foregroundStyle(Theme.ink)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-            HStack(spacing: 3) {
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .minimumScaleFactor(0.75)
+                .frame(minHeight: 36)
+            HStack(spacing: 2) {
                 ForEach(0..<3, id: \.self) { i in
                     Image(systemName: "star.fill")
-                        .font(.system(size: 17, weight: .bold))
-                        .foregroundStyle(i < progress.bestStars ? Theme.yellow : .white.opacity(0.85))
-                        .shadow(color: i < progress.bestStars ? Theme.orange.opacity(0.4) : .clear, radius: 0, y: 1.5)
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(i < progress.bestStars ? Theme.yellow : .white.opacity(0.9))
+                        .shadow(color: i < progress.bestStars ? Theme.orange.opacity(0.4) : .clear, radius: 0, y: 1)
                 }
             }
         }
-        .padding(.vertical, 16)
+        .padding(.vertical, 12)
+        .padding(.horizontal, 4)
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(skill.title), \(progress.bestStars) of 3 stars")

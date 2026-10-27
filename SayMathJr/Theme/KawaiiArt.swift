@@ -24,7 +24,39 @@ extension Color {
 // MARK: - Pip the puppy
 
 enum PipMood: Equatable {
-    case happy, cheer, think, oops
+    case happy, cheer, think, oops, wave, trophy
+
+    /// Image name in the asset catalog. If the image is missing, Pip is drawn in code instead.
+    var assetName: String {
+        switch self {
+        case .happy: return "pip_happy"
+        case .cheer: return "pip_cheer"
+        case .think: return "pip_think"
+        case .oops: return "pip_oops"
+        case .wave: return "pip_wave"
+        case .trophy: return "pip_trophy"
+        }
+    }
+
+    /// The finished artwork for this mood. Thinking falls back to the happy pose
+    /// so the art style stays consistent until a thinking pose is added.
+    var artwork: UIImage? {
+        if let image = UIImage(named: assetName) { return image }
+        switch self {
+        case .think, .wave: return UIImage(named: "pip_happy")
+        case .trophy: return UIImage(named: "pip_cheer")
+        default: return nil
+        }
+    }
+
+    /// Mood used by the code-drawn fallback, which only has four faces.
+    var drawnMood: PipMood {
+        switch self {
+        case .wave: return .happy
+        case .trophy: return .cheer
+        default: return self
+        }
+    }
 }
 
 /// Pip, the app's original puppy helper, drawn entirely in code.
@@ -36,8 +68,9 @@ struct PipView: View {
     @State private var pop = false
 
     var body: some View {
+        let art = mood.artwork
         ZStack {
-            if mood == .cheer {
+            if mood.drawnMood == .cheer && art == nil {
                 ForEach(0..<4, id: \.self) { i in
                     SparkleShape()
                         .fill(i.isMultiple(of: 2) ? Theme.yellow : Theme.pink)
@@ -48,10 +81,19 @@ struct PipView: View {
                         .transition(.scale.combined(with: .opacity))
                 }
             }
-            Canvas { ctx, canvasSize in
-                PipDrawing(mood: mood).draw(in: &ctx, size: canvasSize)
+            if let art {
+                // Finished artwork (Assets.xcassets/pip_<mood>) when it has been added
+                Image(uiImage: art)
+                    .resizable()
+                    .interpolation(.high)
+                    .scaledToFit()
+                    .frame(width: size * 1.12, height: size * 1.12)
+            } else {
+                Canvas { ctx, canvasSize in
+                    PipDrawing(mood: mood.drawnMood).draw(in: &ctx, size: canvasSize)
+                }
+                .frame(width: size, height: size)
             }
-            .frame(width: size, height: size)
         }
         .frame(width: size, height: size)
         .scaleEffect(pop ? 1.12 : 1)
@@ -132,12 +174,12 @@ private struct PipDrawing {
         for side in [-1.0, 1.0] as [CGFloat] {
             let ex = side * 0.17, ey: CGFloat = -0.04
             switch mood {
-            case .cheer:
+            case .cheer, .trophy:
                 var arc = Path()
                 arc.move(to: p(ex - 0.06, ey + 0.025))
                 arc.addQuadCurve(to: p(ex + 0.06, ey + 0.025), control: p(ex, ey - 0.07))
                 ctx.stroke(arc, with: .color(Self.dark), style: StrokeStyle(lineWidth: line * 1.3, lineCap: .round))
-            case .happy, .think, .oops:
+            case .happy, .think, .oops, .wave:
                 let h: CGFloat = mood == .oops ? 0.12 : 0.15
                 ctx.fill(ell(ex, ey, 0.115, h), with: .color(Self.dark))
                 let lookUp: CGFloat = mood == .think ? -0.02 : 0
@@ -159,14 +201,14 @@ private struct PipDrawing {
         // Mouth
         let mouthStyle = StrokeStyle(lineWidth: line, lineCap: .round, lineJoin: .round)
         switch mood {
-        case .happy:
+        case .happy, .wave:
             var m = Path()
             m.move(to: p(0, 0.13)); m.addLine(to: p(0, 0.165))
             m.move(to: p(-0.075, 0.165))
             m.addQuadCurve(to: p(0, 0.165), control: p(-0.037, 0.225))
             m.addQuadCurve(to: p(0.075, 0.165), control: p(0.037, 0.225))
             ctx.stroke(m, with: .color(Self.dark), style: mouthStyle)
-        case .cheer:
+        case .cheer, .trophy:
             var m = Path()
             m.move(to: p(-0.1, 0.155))
             m.addQuadCurve(to: p(0.1, 0.155), control: p(0, 0.36))
@@ -241,7 +283,29 @@ struct SceneBackground: View {
         (0.08, 0.22, 16), (0.9, 0.14, 12), (0.78, 0.36, 10), (0.18, 0.48, 9), (0.94, 0.56, 14), (0.5, 0.08, 10),
     ]
 
+    /// Finished background artwork for this kind of screen, if it has been added.
+    private var artName: String {
+        if tint != nil { return "bg_lesson" }
+        return showHills ? "bg_home" : "bg_stickers"
+    }
+
     var body: some View {
+        if let art = UIImage(named: artName) {
+            Color.clear
+                .overlay(alignment: .bottom) {
+                    Image(uiImage: art)
+                        .resizable()
+                        .scaledToFill()
+                }
+                .clipped()
+                .ignoresSafeArea()
+                .accessibilityHidden(true)
+        } else {
+            drawnScene
+        }
+    }
+
+    private var drawnScene: some View {
         GeometryReader { geo in
             let w = geo.size.width, h = geo.size.height
             ZStack {
@@ -571,5 +635,98 @@ struct BubbleShape: Shape {
         tail.closeSubpath()
         p.addPath(tail)
         return p
+    }
+}
+
+// MARK: - Skill icon (artwork when available, emoji otherwise)
+
+extension Skill {
+    var iconAssetName: String {
+        switch self {
+        case .counting: return "icon_counting"
+        case .compare: return "icon_compare"
+        case .addition: return "icon_addition"
+        case .subtraction: return "icon_subtraction"
+        case .makeTen: return "icon_numberbonds"
+        case .shapes: return "icon_shapes"
+        case .patterns: return "icon_patterns"
+        case .skipCounting: return "icon_skipcounting"
+        case .tensOnes: return "icon_tensones"
+        case .time: return "icon_time"
+        }
+    }
+}
+
+struct SkillIcon: View {
+    let skill: Skill
+    var size: CGFloat
+
+    var body: some View {
+        if let art = UIImage(named: skill.iconAssetName) {
+            Image(uiImage: art)
+                .resizable()
+                .interpolation(.high)
+                .scaledToFit()
+                .frame(width: size, height: size)
+                .accessibilityHidden(true)
+        } else {
+            Text(skill.emoji)
+                .font(.system(size: size * 0.6))
+                .frame(width: size, height: size)
+                .background(Circle().fill(.white))
+                .overlay(Circle().stroke(skill.color.lighter(0.25), lineWidth: max(3, size * 0.05)))
+                .accessibilityHidden(true)
+        }
+    }
+}
+
+// MARK: - Wooden sign (title plaques)
+
+struct WoodSign: View {
+    let text: String
+    var size: CGFloat = 28
+
+    static let wood = Color(red: 0.97, green: 0.80, blue: 0.55)
+    static let woodDark = Color(red: 0.90, green: 0.66, blue: 0.40)
+    static let outline = Color(red: 0.47, green: 0.29, blue: 0.17)
+    static let ink = Color(red: 0.36, green: 0.20, blue: 0.12)
+
+    var body: some View {
+        Text(text)
+            .font(.kid(size, .black))
+            .foregroundStyle(Self.ink)
+            .multilineTextAlignment(.center)
+            .lineLimit(2)
+            .minimumScaleFactor(0.6)
+            .padding(.horizontal, 26)
+            .padding(.vertical, 10)
+            .background(WoodPlank())
+            .accessibilityAddTraits(.isHeader)
+    }
+}
+
+struct WoodPlank: View {
+    var radius: CGFloat = 18
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        ZStack {
+            shape.fill(WoodSign.outline.opacity(0.85)).offset(y: 5)
+            shape.fill(LinearGradient(colors: [WoodSign.wood, WoodSign.woodDark], startPoint: .top, endPoint: .bottom))
+            GeometryReader { geo in
+                // Wood grain
+                Capsule().fill(WoodSign.outline.opacity(0.14))
+                    .frame(width: geo.size.width * 0.34, height: 3)
+                    .position(x: geo.size.width * 0.24, y: geo.size.height * 0.32)
+                Capsule().fill(WoodSign.outline.opacity(0.12))
+                    .frame(width: geo.size.width * 0.28, height: 3)
+                    .position(x: geo.size.width * 0.74, y: geo.size.height * 0.72)
+                Capsule().fill(.white.opacity(0.35))
+                    .frame(width: geo.size.width * 0.5, height: 4)
+                    .position(x: geo.size.width * 0.5, y: 7)
+            }
+            .clipShape(shape)
+            shape.stroke(WoodSign.outline, lineWidth: 4)
+        }
     }
 }

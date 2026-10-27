@@ -23,19 +23,18 @@ struct LessonView: View {
 
     var body: some View {
         ZStack {
-            SceneBackground(tint: skill.color, showHills: false)
+            SceneBackground(tint: skill.color, showHills: false)  // uses bg_lesson art when present
 
             if let q = current {
                 VStack(spacing: 12) {
                     topBar
                     ScrollView {
-                        VStack(spacing: 16) {
+                        VStack(spacing: 14) {
                             questionCard(q)
-                            choicesGrid(q)
-                            MascotBubble(text: bubble.isEmpty ? "Tap the right answer!" : bubble, mood: mood)
+                            MascotBubble(text: bubble.isEmpty ? "Tap the right answer!" : bubble, mood: mood, pipSize: 92)
                         }
-                        .padding(.horizontal, 18)
-                        .padding(.top, 4)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 30)
                         .padding(.bottom, 110)
                         .frame(maxWidth: 680)
                         .frame(maxWidth: .infinity)
@@ -67,68 +66,45 @@ struct LessonView: View {
 
     private var topBar: some View {
         HStack(spacing: 12) {
-            Button {
-                dismiss()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 18, weight: .heavy))
-                    .foregroundStyle(Theme.ink)
-                    .frame(width: 46, height: 46)
+            RoundIconButton(systemName: "chevron.left", label: "Back") { dismiss() }
+
+            ProgressTrack(
+                fraction: questions.isEmpty ? 0 : Double(index + (solved ? 1 : 0)) / Double(questions.count))
+
+            RoundIconButton(systemName: "speaker.wave.2.fill", label: "Read question out loud") {
+                if let q = current { Speaker.shared.say(q.spoken) }
             }
-            .buttonStyle(CandyButtonStyle(color: .white, radius: 23, depth: 4))
-            .accessibilityLabel("Close")
-
-            StarTrack(total: questions.count, done: index + (solved ? 1 : 0), color: skill.color)
-
-            Text(skill.emoji)
-                .font(.system(size: 26))
-                .frame(width: 46, height: 46)
-                .background(Circle().fill(.white))
-                .overlay(Circle().stroke(skill.color.lighter(0.3), lineWidth: 3))
         }
-        .padding(.horizontal, 18)
+        .padding(.horizontal, 16)
         .padding(.top, 8)
     }
 
     private func questionCard(_ q: Question) -> some View {
-        VStack(spacing: 18) {
-            HStack(alignment: .top) {
-                Text(q.prompt)
-                    .font(.kid(27, .heavy))
-                    .foregroundStyle(Theme.ink)
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer()
-                Button {
-                    Speaker.shared.say(q.spoken)
-                } label: {
-                    Image(systemName: "speaker.wave.2.fill")
-                        .font(.system(size: 20, weight: .bold))
-                        .foregroundStyle(.white)
-                        .frame(width: 50, height: 50)
-                }
-                .buttonStyle(CandyButtonStyle(color: Theme.blue, radius: 25, depth: 4))
-                .accessibilityLabel("Read question out loud")
-            }
+        VStack(spacing: 16) {
+            WoodSign(text: q.prompt, size: q.prompt.count > 22 ? 22 : 27)
+                .padding(.top, -34)
+
             if q.visual != .empty {
                 QuestionVisualView(visual: q.visual)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
+                    .padding(.vertical, 14)
                     .padding(.horizontal, 6)
                     .background(
-                        RoundedRectangle(cornerRadius: 22, style: .continuous)
-                            .fill(skill.color.lighter(0.86))
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .fill(Color(red: 0.99, green: 0.98, blue: 0.95))
                     )
             }
+
+            choicesGrid(q)
         }
-        .padding(18)
+        .padding(.horizontal, 14)
+        .padding(.bottom, 14)
         .background(
-            RoundedRectangle(cornerRadius: 30, style: .continuous)
-                .fill(.white)
-                .shadow(color: Theme.ink.opacity(0.10), radius: 12, y: 6)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 30, style: .continuous)
-                .stroke(skill.color.lighter(0.5), lineWidth: 3)
+            // Border is drawn in the background so it never cuts through the wooden sign.
+            RoundedRectangle(cornerRadius: 32, style: .continuous)
+                .fill(.white.opacity(0.96))
+                .overlay(RoundedRectangle(cornerRadius: 32, style: .continuous).stroke(.white, lineWidth: 3))
+                .shadow(color: Theme.ink.opacity(0.12), radius: 14, y: 6)
         )
     }
 
@@ -138,14 +114,16 @@ struct LessonView: View {
             return false
         }()
         let columns = isGroup ? 1 : (q.choices.count == 3 ? 3 : 2)
-        return LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 14), count: columns), spacing: 10) {
+        // Use one text size for every answer in a question.
+        let hasLongAnswer = q.choices.contains { if case .text(let t) = $0 { return t.count > 4 }; return false }
+        return LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: columns), spacing: 8) {
             ForEach(Array(q.choices.enumerated()), id: \.offset) { i, choice in
                 let mark = state(for: i, in: q)
                 Button { pick(i) } label: {
-                    ChoiceLabel(choice: choice, state: mark)
+                    ChoiceLabel(choice: choice, state: mark, small: hasLongAnswer)
                 }
-                .buttonStyle(CandyButtonStyle(color: ChoiceLabel.color(for: mark), radius: 24, depth: 7))
-                .opacity(mark == .wrong ? 0.55 : 1)
+                .buttonStyle(CandyButtonStyle(color: ChoiceLabel.color(for: mark, index: i), radius: 24, depth: 6))
+                .opacity(mark == .wrong ? 0.6 : 1)
                 .disabled(solved || wrongPicks.contains(i))
                 .accessibilityLabel(ChoiceLabel.spoken(choice))
             }
@@ -264,28 +242,33 @@ struct LessonView: View {
     }
 }
 
-/// Row of little stars that fill in as questions are answered.
-struct StarTrack: View {
-    let total: Int
-    let done: Int
-    let color: Color
+/// Green progress bar with a star at the finish line.
+struct ProgressTrack: View {
+    let fraction: Double
 
     var body: some View {
-        HStack(spacing: 6) {
-            ForEach(0..<max(total, 1), id: \.self) { i in
-                Image(systemName: i < done ? "star.fill" : "star")
-                    .font(.system(size: 20, weight: .heavy))
-                    .foregroundStyle(i < done ? Theme.yellow : Theme.ink.opacity(0.2))
-                    .scaleEffect(i == done - 1 ? 1.2 : 1)
-                    .animation(.spring(response: 0.3, dampingFraction: 0.5), value: done)
-                    .frame(maxWidth: .infinity)
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Capsule().fill(.white.opacity(0.92))
+                Capsule()
+                    .fill(LinearGradient(colors: [Theme.green.lighter(0.25), Theme.green], startPoint: .top, endPoint: .bottom))
+                    .frame(width: max(20, (geo.size.width - 8) * fraction))
+                    .padding(4)
+                    .animation(.spring(response: 0.45, dampingFraction: 0.7), value: fraction)
             }
         }
-        .padding(.vertical, 10)
-        .padding(.horizontal, 12)
-        .background(Capsule().fill(.white.opacity(0.9)))
+        .frame(height: 26)
+        .overlay(alignment: .trailing) {
+            Image(systemName: "star.fill")
+                .font(.system(size: 30, weight: .heavy))
+                .foregroundStyle(Theme.yellow)
+                .shadow(color: Theme.orange.opacity(0.5), radius: 0, y: 2)
+                .offset(x: 8)
+        }
+        .padding(.trailing, 8)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Question \(min(done + 1, total)) of \(total)")
+        .accessibilityLabel("Progress")
+        .accessibilityValue("\(Int((fraction * 100).rounded())) percent")
     }
 }
 
@@ -293,14 +276,19 @@ struct ChoiceLabel: View {
     enum Mark { case normal, right, wrong }
     let choice: Choice
     let state: Mark
+    var small = false
 
-    static func color(for mark: Mark) -> Color {
+    static let palette: [Color] = [Theme.pink, Theme.yellow, Theme.blue, Theme.green]
+
+    static func color(for mark: Mark, index: Int) -> Color {
         switch mark {
-        case .normal: return .white
-        case .right: return Theme.green.lighter(0.55)
-        case .wrong: return Theme.red.lighter(0.7)
+        case .normal: return palette[index % palette.count].lighter(0.42)
+        case .right: return Theme.green.lighter(0.15)
+        case .wrong: return Color(white: 0.86)
         }
     }
+
+    static let numberInk = Color(red: 0.36, green: 0.20, blue: 0.12)
 
     static func spoken(_ choice: Choice) -> String {
         switch choice {
@@ -330,8 +318,8 @@ struct ChoiceLabel: View {
         switch choice {
         case .text(let text):
             Text(text)
-                .font(.kid(text.count > 4 ? 26 : 36, .heavy))
-                .foregroundStyle(Theme.ink)
+                .font(.kid(small ? 26 : 40, .black))
+                .foregroundStyle(state == .right ? .white : Self.numberInk)
                 .minimumScaleFactor(0.5)
                 .lineLimit(1)
                 .padding(.horizontal, 8)

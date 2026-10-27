@@ -283,7 +283,29 @@ struct SceneBackground: View {
         (0.08, 0.22, 16), (0.9, 0.14, 12), (0.78, 0.36, 10), (0.18, 0.48, 9), (0.94, 0.56, 14), (0.5, 0.08, 10),
     ]
 
+    /// Finished background artwork for this kind of screen, if it has been added.
+    private var artName: String {
+        if tint != nil { return "bg_lesson" }
+        return showHills ? "bg_home" : "bg_stickers"
+    }
+
     var body: some View {
+        if let art = UIImage(named: artName) {
+            Color.clear
+                .overlay(alignment: .bottom) {
+                    Image(uiImage: art)
+                        .resizable()
+                        .scaledToFill()
+                }
+                .clipped()
+                .ignoresSafeArea()
+                .accessibilityHidden(true)
+        } else {
+            drawnScene
+        }
+    }
+
+    private var drawnScene: some View {
         GeometryReader { geo in
             let w = geo.size.width, h = geo.size.height
             ZStack {

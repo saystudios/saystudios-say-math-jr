@@ -100,13 +100,11 @@ struct LessonView: View {
         .padding(.horizontal, 14)
         .padding(.bottom, 14)
         .background(
+            // Border is drawn in the background so it never cuts through the wooden sign.
             RoundedRectangle(cornerRadius: 32, style: .continuous)
                 .fill(.white.opacity(0.96))
+                .overlay(RoundedRectangle(cornerRadius: 32, style: .continuous).stroke(.white, lineWidth: 3))
                 .shadow(color: Theme.ink.opacity(0.12), radius: 14, y: 6)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 32, style: .continuous)
-                .stroke(.white, lineWidth: 3)
         )
     }
 
@@ -116,11 +114,13 @@ struct LessonView: View {
             return false
         }()
         let columns = isGroup ? 1 : (q.choices.count == 3 ? 3 : 2)
+        // Use one text size for every answer in a question.
+        let hasLongAnswer = q.choices.contains { if case .text(let t) = $0 { return t.count > 4 }; return false }
         return LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: columns), spacing: 8) {
             ForEach(Array(q.choices.enumerated()), id: \.offset) { i, choice in
                 let mark = state(for: i, in: q)
                 Button { pick(i) } label: {
-                    ChoiceLabel(choice: choice, state: mark)
+                    ChoiceLabel(choice: choice, state: mark, small: hasLongAnswer)
                 }
                 .buttonStyle(CandyButtonStyle(color: ChoiceLabel.color(for: mark, index: i), radius: 24, depth: 6))
                 .opacity(mark == .wrong ? 0.6 : 1)
@@ -276,6 +276,7 @@ struct ChoiceLabel: View {
     enum Mark { case normal, right, wrong }
     let choice: Choice
     let state: Mark
+    var small = false
 
     static let palette: [Color] = [Theme.pink, Theme.yellow, Theme.blue, Theme.green]
 
@@ -317,7 +318,7 @@ struct ChoiceLabel: View {
         switch choice {
         case .text(let text):
             Text(text)
-                .font(.kid(text.count > 4 ? 26 : 40, .black))
+                .font(.kid(small ? 26 : 40, .black))
                 .foregroundStyle(state == .right ? .white : Self.numberInk)
                 .minimumScaleFactor(0.5)
                 .lineLimit(1)
